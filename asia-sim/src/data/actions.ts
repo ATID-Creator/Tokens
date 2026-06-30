@@ -1,0 +1,58 @@
+import type { DiplomaticAction } from '../types';
+
+export const DIPLOMATIC_ACTIONS: DiplomaticAction[] = [
+  {
+    type: 'summit',
+    label: '首脳会談',
+    description: '首脳会談を開催し、相互理解を深めます',
+    cost: 50,
+    relationChange: 12,
+    tradeChange: 5,
+    influenceCost: 10,
+  },
+  {
+    type: 'trade_deal',
+    label: '貿易協定',
+    description: '関税を引き下げ、貿易量を拡大します',
+    cost: 80,
+    relationChange: 8,
+    tradeChange: 25,
+    influenceCost: 15,
+  },
+  {
+    type: 'aid',
+    label: '経済援助',
+    description: 'ODA・技術協力を提供します',
+    cost: 120,
+    relationChange: 15,
+    tradeChange: 8,
+    influenceCost: 5,
+  },
+  {
+    type: 'sanction',
+    label: '制裁措置',
+    description: '経済制裁を課し、関係を悪化させます',
+    cost: 30,
+    relationChange: -25,
+    tradeChange: -40,
+    influenceCost: 20,
+  },
+  {
+    type: 'cultural_exchange',
+    label: '文化交流',
+    description: '文化・教育交流プログラムを実施します',
+    cost: 25,
+    relationChange: 10,
+    tradeChange: 3,
+    influenceCost: 3,
+  },
+  {
+    type: 'military_coop',
+    label: '安全保障協力',
+    description: '防衛・安全保障分野で協力を強化します',
+    cost: 100,
+    relationChange: 18,
+    tradeChange: 5,
+    influenceCost: 25,
+  },
+];

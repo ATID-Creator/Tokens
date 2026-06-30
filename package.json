@@ -15,7 +15,11 @@
     "publish": "truffle publish",
     "pretest": "npm run lint",
     "test": "truffle test",
-    "coverage": "solidity-coverage"
+    "coverage": "solidity-coverage",
+    "asia-sim:install": "npm install --prefix asia-sim",
+    "asia-sim": "npm run start --prefix asia-sim",
+    "asia-sim:build": "npm run build --prefix asia-sim",
+    "asia-sim:preview": "npm run preview --prefix asia-sim"
   },
   "repository": {
     "type": "git",
