@@ -36,8 +36,18 @@
         </section>
 
         <section class="card">
+          <h2>インコタームズ</h2>
+          <div id="incoterm-panel" class="incoterm-panel"></div>
+        </section>
+
+        <section class="card">
           <h2>航海先</h2>
           <div id="travel-list" class="travel-list"></div>
+        </section>
+
+        <section class="card">
+          <h2>直近の貿易費用</h2>
+          <div id="cost-summary" class="cost-summary"></div>
         </section>
       </aside>
 
@@ -66,6 +76,19 @@
       <div class="modal" id="modal">
         <div id="modal-content"></div>
         <button id="modal-close" class="btn btn--primary">始める</button>
+      </div>
+    </div>
+
+    <div id="travel-modal-overlay" class="modal-overlay hidden">
+      <div class="modal modal--wide" id="travel-modal">
+        <h2>🚢 輸出契約 — インコタームズ選択</h2>
+        <p id="travel-modal-route" class="travel-modal__route"></p>
+        <div id="travel-incoterm-options" class="incoterm-options"></div>
+        <div id="travel-cost-breakdown" class="cost-breakdown"></div>
+        <div class="travel-modal__actions">
+          <button id="travel-cancel" class="btn btn--ghost">キャンセル</button>
+          <button id="travel-confirm" class="btn btn--primary">出航する</button>
+        </div>
       </div>
     </div>
   </div>
