@@ -41,6 +41,11 @@
         </section>
 
         <section class="card">
+          <h2>取引銀行</h2>
+          <div id="bank-panel" class="incoterm-panel"></div>
+        </section>
+
+        <section class="card">
           <h2>インコタームズ（仕入条件）</h2>
           <div id="incoterm-panel" class="incoterm-panel"></div>
         </section>
@@ -117,9 +122,22 @@
           <div id="shipment-payment-options" class="chip-row"></div>
         </div>
         <div class="shipment-section">
-          <h3>⑦ 貿易書類</h3>
+          <h3>⑦ 取引銀行</h3>
+          <div id="shipment-bank-options" class="carrier-list"></div>
+        </div>
+        <div class="shipment-section">
+          <h3>⑧ コンテナ / CY（コンテナヤード）</h3>
+          <div id="shipment-container-options" class="chip-row"></div>
+          <div id="shipment-cy-options"></div>
+        </div>
+        <div class="shipment-section">
+          <h3>⑨ NACCS / 電子通関</h3>
+          <div id="shipment-naccs-info" class="naccs-info"></div>
+        </div>
+        <div class="shipment-section">
+          <h3>⑩ 通関書類</h3>
           <div id="shipment-co-option"></div>
-          <p class="hint">必須: Commercial Invoice, Packing List, B/L or AWB / 検疫品目は植物検疫証明</p>
+          <p class="hint">Invoice, P/L, E/D, I/D, 通関委任状, B/L or AWB, D/O, NACCSマニフェスト 等</p>
         </div>
         <div id="shipment-cost-breakdown" class="cost-breakdown"></div>
         <div class="travel-modal__actions">

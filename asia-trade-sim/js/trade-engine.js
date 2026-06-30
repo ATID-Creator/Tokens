@@ -5,7 +5,8 @@
 import {
   CITIES, GOODS, INCOTERMS, COST_TYPES, TRADE_STAGES, TRADE_DOCUMENTS,
   TRANSPORT_MODES, CUSTOMS_BROKERS, FORWARDERS, PAYMENT_TERMS, FTA_GROUPS,
-  DISTANCES, getCarrier, getAvailableModes,
+  DISTANCES, BANKS, CONTAINER_TYPES, CUSTOMS_SYSTEMS,
+  getCarrier, getContainerYards, resolveCustomsSystemForRoute,
 } from './data.js';
 
 export { COST_TYPES, TRADE_STAGES };
@@ -38,16 +39,21 @@ export function getFtaReduction(state, originId, destId, hasCO) {
   return reduction;
 }
 
-export function getRequiredDocuments(modeId, cargo, includeCO) {
-  const docs = ['commercial_invoice', 'packing_list'];
-  const mode = TRANSPORT_MODES[modeId];
+export function getRequiredDocuments(modeId, cargo, includeCO, paymentTermId, fromId, toId) {
+  const docs = ['commercial_invoice', 'packing_list', 'export_declaration', 'import_declaration', 'customs_power'];
   Object.values(TRADE_DOCUMENTS).forEach((d) => {
     if (d.modes && d.modes.includes(modeId)) docs.push(d.id);
+    if (d.paymentTerms && d.paymentTerms.includes(paymentTermId)) docs.push(d.id);
   });
   if (includeCO) docs.push('certificate_of_origin');
   Object.keys(cargo).forEach((goodId) => {
-    if (GOODS[goodId].quarantine && !docs.includes('phytosanitary')) docs.push('phytosanitary');
+    if (GOODS[goodId].quarantine) docs.push('phytosanitary');
   });
+  const exportSys = resolveCustomsSystemForRoute(fromId, toId, 'export');
+  const importSys = resolveCustomsSystemForRoute(fromId, toId, 'import');
+  if (exportSys.id !== 'manual') docs.push('naccs_manifest');
+  if (importSys.id !== 'manual' && importSys.id !== exportSys.id) docs.push('naccs_manifest');
+  if (modeId === 'sea') docs.push('delivery_order');
   return [...new Set(docs)];
 }
 
@@ -73,10 +79,16 @@ export function calculateImportDuty(state, fromId, toId, cargo, cargoMeta, price
   return total;
 }
 
+export function calcContainersNeeded(cargoUnits, containerTypeId) {
+  const ct = CONTAINER_TYPES[containerTypeId] || CONTAINER_TYPES.gp20;
+  return Math.max(1, Math.ceil(cargoUnits / ct.capacity));
+}
+
 export function calculateTradeCosts(state, opts) {
   const {
     fromId, toId, cargo, cargoMeta, incotermId, modeId, carrierId,
-    brokerId, forwarderId, includeCO, paymentTermId,
+    brokerId, forwarderId, includeCO, paymentTermId, bankId,
+    containerTypeId, originCyId, destCyId,
   } = opts;
 
   const incoterm = INCOTERMS[incotermId];
@@ -85,13 +97,23 @@ export function calculateTradeCosts(state, opts) {
   const broker = CUSTOMS_BROKERS[brokerId];
   const forwarder = FORWARDERS[forwarderId];
   const payment = PAYMENT_TERMS[paymentTermId];
+  const bank = BANKS[bankId];
   const origin = CITIES[fromId];
   const dest = CITIES[toId];
   const baseDays = DISTANCES[fromId][toId];
   const cargoUnits = getCargoUsed(cargo);
   const cargoWeight = getCargoWeight(cargo);
   const cargoValue = getCargoValue(cargo, cargoMeta, fromId, state.prices);
-  const docIds = getRequiredDocuments(modeId, cargo, includeCO);
+  const docIds = getRequiredDocuments(modeId, cargo, includeCO, paymentTermId, fromId, toId);
+  const exportSys = resolveCustomsSystemForRoute(fromId, toId, 'export');
+  const importSys = resolveCustomsSystemForRoute(fromId, toId, 'import');
+
+  const originYards = getContainerYards(fromId);
+  const destYards = getContainerYards(toId);
+  const originCy = originYards.find((y) => y.id === originCyId) || originYards[0];
+  const destCy = destYards.find((y) => y.id === destCyId) || destYards[0];
+  const containerType = CONTAINER_TYPES[containerTypeId] || CONTAINER_TYPES.gp20;
+  const containerCount = modeId === 'sea' ? calcContainersNeeded(cargoUnits, containerTypeId) : 0;
 
   const transitDays = Math.max(1, Math.ceil(baseDays * mode.speedMult * carrier.speedMult) + (state.portDelay || 0));
   const freightMult = (state.freightSurcharge || 1) * mode.costMult * carrier.costMult;
@@ -114,7 +136,16 @@ export function calculateTradeCosts(state, opts) {
   const documentFees = calcDocumentFees(docIds);
   const brokerFee = Math.round(80 + cargoUnits * 6 * broker.costMult);
   const forwarderFee = Math.round(cargoValue * forwarder.costMult);
-  const lcFee = payment.lcFee || 0;
+
+  const lcFee = Math.round((payment.lcFee || 0) * bank.lcFeeMult);
+  const bankFee = Math.round(bank.ttFee + (paymentTermId === 'lc' || paymentTermId === 'dp' ? 55 : 25));
+  const fxFee = Math.round(cargoValue * bank.fxSpread);
+  const naccsFee = Math.round((exportSys.fee + importSys.fee) * (bank.naccsLinked ? 0.85 : 1));
+  const containerYardFee = modeId === 'sea'
+    ? Math.round((120 * containerCount * containerType.costMult * originCy.costMult) + (90 * containerCount * destCy.costMult))
+    : Math.round(cargoUnits * 8);
+  const dutyPaymentFee = Math.round(35 + cargoValue * 0.002);
+
   const importDuty = calculateImportDuty(state, fromId, toId, cargo, cargoMeta, state.prices, includeCO);
   const cifTotal = cargoValue + freight + insurance;
   const vat = Math.round((cifTotal + importDuty) * dest.vatRate);
@@ -124,6 +155,7 @@ export function calculateTradeCosts(state, opts) {
     freight, insurance, exportClearance, importClearance,
     originHandling, destHandling, importDuty, vat, inlandTransport,
     documentFees, brokerFee, forwarderFee, lcFee,
+    containerYardFee, naccsFee, bankFee, fxFee, dutyPaymentFee,
   };
 
   const sellerPays = {};
@@ -135,28 +167,40 @@ export function calculateTradeCosts(state, opts) {
   incoterm.buyerPays.forEach((k) => { buyerPays[k] = allCosts[k]; playerTotal += allCosts[k]; });
 
   const purchasePremium = Math.round(cargoValue * (incoterm.purchaseModifier - 1) * payment.modifier);
-
-  const stageDays = buildStagePlan(modeId, broker, forwarder, transitDays, cargo);
+  const stageDays = buildStagePlan(opts, payment, broker, forwarder, transitDays, cargo, exportSys, importSys);
 
   return {
     allCosts, sellerPays, buyerPays,
     playerTotal: playerTotal + purchasePremium + lcFee,
     sellerTotal, purchasePremium, cargoValue, cargoUnits,
-    transitDays, ftaReduction, docIds, stageDays, totalDays: stageDays.reduce((s, st) => s + st.days, 0),
-    carrier, mode, broker, forwarder, payment,
+    transitDays, ftaReduction, docIds, stageDays,
+    totalDays: stageDays.reduce((s, st) => s + st.days, 0),
+    carrier, mode, broker, forwarder, payment, bank,
+    originCy, destCy, containerType, containerCount,
+    exportSys, importSys,
   };
 }
 
-export function buildStagePlan(modeId, broker, forwarder, transitDays, cargo) {
+export function buildStagePlan(opts, payment, broker, forwarder, transitDays, cargo, exportSys, importSys) {
   const hasQuarantine = Object.keys(cargo).some((id) => GOODS[id].quarantine || GOODS[id].perishable);
-  return [
-    { id: 'documents', days: Math.max(1, Math.ceil(1 * forwarder.docSpeed)) },
+  const bankDays = payment.needsBankDays || 0;
+  const stages = [
+    { id: 'documents', days: Math.max(1, Math.ceil(1.2 * forwarder.docSpeed)) },
+  ];
+  if (bankDays > 0) stages.push({ id: 'bank', days: bankDays });
+  if (exportSys.id !== 'manual') stages.push({ id: 'naccs', days: Math.max(1, Math.ceil(1 * exportSys.speedMult)) });
+  stages.push(
     { id: 'export_customs', days: Math.max(1, Math.ceil(1.2 * broker.speedMult)) },
+  );
+  if (opts.modeId === 'sea') stages.push({ id: 'container_yard', days: 1 });
+  stages.push(
     { id: 'loading', days: 1 },
     { id: 'transit', days: transitDays },
-    { id: 'import_customs', days: Math.max(1, Math.ceil((hasQuarantine ? 2.5 : 1.8) * broker.speedMult)) },
+    { id: 'import_customs', days: Math.max(1, Math.ceil((hasQuarantine ? 2.5 : 1.8) * broker.speedMult * importSys.speedMult)) },
+    { id: 'duty_payment', days: 1 },
     { id: 'delivery', days: 1 },
-  ];
+  );
+  return stages;
 }
 
 export function createShipment(state, opts, costs) {
@@ -173,8 +217,17 @@ export function createShipment(state, opts, costs) {
     carrier: opts.carrierId,
     broker: opts.brokerId,
     forwarder: opts.forwarderId,
+    bank: opts.bankId,
     paymentTerm: opts.paymentTermId,
+    containerType: opts.containerTypeId,
+    originCy: opts.originCyId,
+    destCy: opts.destCyId,
     documents: costs.docIds,
+    documentStatus: costs.docIds.map((d) => ({ id: d, label: TRADE_DOCUMENTS[d]?.label || d, ready: false })),
+    exportSystem: costs.exportSys.id,
+    importSystem: costs.importSys.id,
+    containerCount: costs.containerCount,
+    cyFreeDaysLeft: costs.originCy?.freeDays || 3,
     stages,
     stageIndex: 0,
     stageDaysLeft: stages[0].days,
@@ -222,28 +275,73 @@ export function advanceShipment(shipment, state) {
   if (shipment.stageDaysLeft > 0) return logs;
 
   const stage = shipment.stages[shipment.stageIndex];
-  const stageInfo = TRADE_STAGES.find((s) => s.id === stage.id);
+
+  if (stage.id === 'documents') {
+    shipment.documentStatus.forEach((d) => { d.ready = true; });
+    logs.push(`【通関書類】${shipment.documentStatus.length}点の書類セット完成`);
+  }
+
+  if (stage.id === 'bank') {
+    const bank = BANKS[shipment.bank];
+    logs.push(`【銀行】${bank.name}: ${PAYMENT_TERMS[shipment.paymentTerm].name}手続完了`);
+  }
+
+  if (stage.id === 'naccs') {
+    const sys = CUSTOMS_SYSTEMS[shipment.exportSystem] || CUSTOMS_SYSTEMS.manual;
+    if (Math.random() < sys.errorRate) {
+      shipment.stageDaysLeft = 1;
+      logs.push(`【${sys.name}】データ不備で再送信 (+1日)`);
+      return logs;
+    }
+    logs.push(`【${sys.name}】電子マニフェスト送信・通関予約完了`);
+  }
+
+  if (stage.id === 'container_yard') {
+    const cy = getContainerYards(shipment.from).find((y) => y.id === shipment.originCy);
+    if (cy && Math.random() < cy.congestion) {
+      shipment.stageDaysLeft = 1;
+      logs.push(`【CY】${cy.name}: ヤード混雑で搬入待ち (+1日)`);
+      return logs;
+    }
+    if (Math.random() < 0.08) {
+      const dem = Math.round(75 * (shipment.containerCount || 1));
+      state.money -= dem;
+      state.totalTradeCosts += dem;
+      logs.push(`【CY】${cy?.name || 'CY'}: リフティングチャージ -$${dem}`);
+    }
+  }
 
   if (stage.id === 'import_customs') {
     const dest = CITIES[shipment.to];
-    const baseRate = dest.inspectionRate || 0.15;
     const broker = CUSTOMS_BROKERS[shipment.broker];
+    const importSys = CUSTOMS_SYSTEMS[shipment.importSystem] || CUSTOMS_SYSTEMS.manual;
+    const baseRate = dest.inspectionRate || 0.15;
     const inspectRate = Math.max(0.05, baseRate - broker.inspectionReduction + (state.inspectionBoost || 0));
     if (Math.random() < inspectRate) {
       shipment.stageDaysLeft = 2;
       const fee = Math.round(150 + getCargoUsed(shipment.cargo) * 10);
       state.money -= fee;
       state.totalTradeCosts += fee;
-      logs.push(`【通関検査】${CITIES[shipment.to].name}: 税関検査実施 (+2日, -$${fee})`);
+      logs.push(`【通関検査】${dest.name}税関: 書類審査・実物検査 (+2日, -$${fee})`);
       state.inspectionBoost = 0;
+      return logs;
+    }
+    if (importSys.id !== 'manual' && Math.random() < importSys.errorRate * 0.5) {
+      shipment.stageDaysLeft = 1;
+      logs.push(`【${importSys.name}】輸入申告データ修正 (+1日)`);
       return logs;
     }
     const hasQuarantine = Object.keys(shipment.cargo).some((id) => GOODS[id].quarantine);
     if (hasQuarantine && Math.random() < 0.2) {
       shipment.stageDaysLeft = 1;
-      logs.push(`【検疫】${CITIES[shipment.to].name}: 植物/動物検疫審査 (+1日)`);
+      logs.push(`【検疫】${dest.customs}: 検疫審査 (+1日)`);
       return logs;
     }
+  }
+
+  if (stage.id === 'duty_payment') {
+    const bank = BANKS[shipment.bank];
+    logs.push(`【関税納付】${bank.name}経由で関税・消費税を納付`);
   }
 
   if (stage.id === 'transit') {
@@ -253,6 +351,22 @@ export function advanceShipment(shipment, state) {
       logs.push(`【輸送遅延】${carrier.name}: 天候/港湾混雑で+1日`);
       return logs;
     }
+    shipment.cyFreeDaysLeft = getContainerYards(shipment.to).find((y) => y.id === shipment.destCy)?.freeDays || 3;
+  }
+
+  if (stage.id === 'delivery') {
+    const destCy = getContainerYards(shipment.to).find((y) => y.id === shipment.destCy);
+    if (destCy && Math.random() < destCy.congestion * 0.8) {
+      shipment.stageDaysLeft = 1;
+      logs.push(`【CY】${destCy.name}: コンテナ搬出待ち (+1日)`);
+      return logs;
+    }
+    if (Math.random() < 0.1) {
+      const dem = Math.round(90 * (shipment.containerCount || 1));
+      state.money -= dem;
+      state.totalTradeCosts += dem;
+      logs.push(`【D&D】${destCy?.name || '揚地CY'}: デマレージ -$${dem}`);
+    }
   }
 
   shipment.stageIndex += 1;
@@ -260,13 +374,13 @@ export function advanceShipment(shipment, state) {
     shipment.status = 'delivered';
     mergeCargoToWarehouse(state.warehouses[shipment.to], shipment.cargo, shipment.cargoMeta);
     state.completedShipments = (state.completedShipments || 0) + 1;
-    logs.push(`【搬入完了】${CITIES[shipment.from].name}→${CITIES[shipment.to].name}: 貨物が倉庫に入庫`);
+    logs.push(`【搬出完了】${CITIES[shipment.to].name}CY→倉庫: D/O換にコンテナ搬出・入庫`);
     return logs;
   }
 
   shipment.stageDaysLeft = shipment.stages[shipment.stageIndex].days;
   const next = TRADE_STAGES.find((s) => s.id === shipment.stages[shipment.stageIndex].id);
-  logs.push(`【${next.label}】${CITIES[shipment.from].name}→${CITIES[shipment.to].name}: ${next.label}フェーズ開始`);
+  logs.push(`【${next.label}】${CITIES[shipment.from].name}→${CITIES[shipment.to].name}: ${next.label}開始`);
   return logs;
 }
 
@@ -289,6 +403,17 @@ export function formatCostBreakdown(costs, incotermId) {
   }
 
   html += `<p class="hint">輸送: ${costs.mode.icon} ${costs.mode.name} / ${costs.carrier.name} / 所要${costs.totalDays}日</p>`;
+  if (costs.containerCount) {
+    html += `<p class="hint">コンテナ: ${costs.containerType.name} × ${costs.containerCount}本 / CY: ${costs.originCy.name}</p>`;
+  }
+  html += `<p class="hint">銀行: ${costs.bank.name} / 電子通関: ${costs.exportSys.name} → ${costs.importSys.name}</p>`;
+
+  html += '<div class="doc-checklist"><h4>通関書類セット</h4>';
+  costs.docIds.forEach((id) => {
+    const d = TRADE_DOCUMENTS[id];
+    html += `<span class="doc-tag">${d?.label || id}</span>`;
+  });
+  html += '</div>';
   html += '<div class="cost-section"><h4>あなた（輸入者）の負担</h4>';
   Object.entries(costs.buyerPays).forEach(([k, v]) => {
     html += `<div class="cost-row"><span>${COST_TYPES[k].icon} ${COST_TYPES[k].label}</span><span>$${v.toLocaleString()}</span></div>`;

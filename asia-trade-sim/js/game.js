@@ -5,8 +5,9 @@
 import {
   CONFIG, CITIES, GOODS, INCOTERMS, EVENTS, PAYMENT_TERMS, DISTANCES,
   TRANSPORT_MODES, CUSTOMS_BROKERS, FORWARDERS, TRADE_DOCUMENTS,
-  initWarehouses, generateCityPrices,
-  getAvailableModes, getAvailableCarriers, isRailAvailable,
+  BANKS, CONTAINER_TYPES, CUSTOMS_SYSTEMS,
+  initWarehouses, generateCityPrices, getDefaultBank, getContainerYards,
+  getAvailableModes, getAvailableCarriers, isRailAvailable, resolveCustomsSystemForRoute,
 } from './data.js';
 
 import {
@@ -32,6 +33,10 @@ let shipmentForm = {
   forwarder: 'direct',
   includeCO: false,
   paymentTerm: 'tt_advance',
+  bankId: 'mufg',
+  containerTypeId: 'gp20',
+  originCyId: null,
+  destCyId: null,
   shipAll: true,
 };
 
@@ -52,6 +57,7 @@ function createInitialState() {
     currentEvent: null,
     totalProfit: 0,
     selectedIncoterm: CONFIG.defaultIncoterm,
+    selectedBank: 'mufg',
     lastTradeCosts: null,
     totalTradeCosts: 0,
     completedShipments: 0,
@@ -147,6 +153,11 @@ function openShipmentModal(destId) {
   shipmentForm.mode = modes[0]?.id || 'sea';
   const carriers = getAvailableCarriers(shipmentForm.mode, gameState.currentCity);
   shipmentForm.carrier = carriers[0]?.id || 'one';
+  shipmentForm.bankId = gameState.selectedBank || getDefaultBank(gameState.currentCity).id;
+  const originYards = getContainerYards(gameState.currentCity);
+  const destYards = getContainerYards(destId);
+  shipmentForm.originCyId = originYards[0]?.id;
+  shipmentForm.destCyId = destYards[0]?.id;
   renderShipmentModal();
   document.getElementById('shipment-modal-overlay').classList.remove('hidden');
 }
@@ -172,6 +183,10 @@ function getShipmentOpts() {
     forwarderId: shipmentForm.forwarder,
     includeCO: shipmentForm.includeCO,
     paymentTermId: shipmentForm.paymentTerm,
+    bankId: shipmentForm.bankId,
+    containerTypeId: shipmentForm.containerTypeId,
+    originCyId: shipmentForm.originCyId,
+    destCyId: shipmentForm.destCyId,
   };
 }
 
@@ -223,6 +238,41 @@ function renderShipmentModal() {
   document.getElementById('shipment-payment-options').innerHTML = Object.values(PAYMENT_TERMS).map((p) => `
     <button class="select-chip ${shipmentForm.paymentTerm === p.id ? 'select-chip--active' : ''}" data-payment="${p.id}">${p.name}</button>`).join('');
 
+  document.getElementById('shipment-bank-options').innerHTML = Object.values(BANKS).map((b) => `
+    <label class="carrier-option ${shipmentForm.bankId === b.id ? 'carrier-option--active' : ''}">
+      <input type="radio" name="sh-bank" value="${b.id}" ${shipmentForm.bankId === b.id ? 'checked' : ''}>
+      <div class="carrier-option__head"><strong>${b.country} ${b.name}</strong><span>${b.naccsLinked ? 'NACCS連携' : '国際網'}</span></div>
+      <p>${b.desc}</p>
+    </label>`).join('');
+
+  const originYards = getContainerYards(gameState.currentCity);
+  const destYards = getContainerYards(shipmentForm.destId);
+  if (!originYards.find((y) => y.id === shipmentForm.originCyId)) shipmentForm.originCyId = originYards[0]?.id;
+  if (!destYards.find((y) => y.id === shipmentForm.destCyId)) shipmentForm.destCyId = destYards[0]?.id;
+
+  document.getElementById('shipment-container-options').innerHTML = shipmentForm.mode === 'sea'
+    ? Object.values(CONTAINER_TYPES).map((ct) => `
+      <button class="select-chip ${shipmentForm.containerTypeId === ct.id ? 'select-chip--active' : ''}" data-container="${ct.id}">${ct.name} (${ct.capacity}単位)</button>`).join('')
+    : '<p class="hint">航空/陸送はコンテナ不使用</p>';
+
+  document.getElementById('shipment-cy-options').innerHTML = shipmentForm.mode === 'sea' ? `
+    <p class="hint"><strong>積地CY</strong></p>
+    <div class="chip-row">${originYards.map((y) => `
+      <button class="select-chip ${shipmentForm.originCyId === y.id ? 'select-chip--active' : ''}" data-origin-cy="${y.id}">${y.name}</button>`).join('')}</div>
+    <p class="hint"><strong>揚地CY</strong></p>
+    <div class="chip-row">${destYards.map((y) => `
+      <button class="select-chip ${shipmentForm.destCyId === y.id ? 'select-chip--active' : ''}" data-dest-cy="${y.id}">${y.name}</button>`).join('')}</div>`
+    : '<p class="hint">—</p>';
+
+  const exportSys = resolveCustomsSystemForRoute(gameState.currentCity, shipmentForm.destId, 'export');
+  const importSys = resolveCustomsSystemForRoute(gameState.currentCity, shipmentForm.destId, 'import');
+  document.getElementById('shipment-naccs-info').innerHTML = `
+    <div class="naccs-info">
+      <p><strong>輸出:</strong> ${exportSys.name} — ${exportSys.desc}</p>
+      <p><strong>輸入:</strong> ${importSys.name} — ${importSys.desc}</p>
+      ${exportSys.id === 'naccs' ? '<p class="cost-fta">🇯🇵 NACCS（税関・港湾・通関業者・銀行間EDI）を使用</p>' : ''}
+    </div>`;
+
   document.getElementById('shipment-co-option').innerHTML = `
     <label class="checkbox-label">
       <input type="checkbox" id="include-co" ${shipmentForm.includeCO ? 'checked' : ''}>
@@ -253,6 +303,18 @@ function bindShipmentModalEvents() {
   document.querySelectorAll('[data-payment]').forEach((el) => {
     el.onclick = () => { shipmentForm.paymentTerm = el.dataset.payment; renderShipmentModal(); };
   });
+  document.querySelectorAll('input[name="sh-bank"]').forEach((el) => {
+    el.onchange = () => { shipmentForm.bankId = el.value; gameState.selectedBank = el.value; renderShipmentModal(); renderBankPanel(); };
+  });
+  document.querySelectorAll('[data-container]').forEach((el) => {
+    el.onclick = () => { shipmentForm.containerTypeId = el.dataset.container; renderShipmentModal(); };
+  });
+  document.querySelectorAll('[data-origin-cy]').forEach((el) => {
+    el.onclick = () => { shipmentForm.originCyId = el.dataset.originCy; renderShipmentModal(); };
+  });
+  document.querySelectorAll('[data-dest-cy]').forEach((el) => {
+    el.onclick = () => { shipmentForm.destCyId = el.dataset.destCy; renderShipmentModal(); };
+  });
   const co = document.getElementById('include-co');
   if (co) co.onchange = () => { shipmentForm.includeCO = co.checked; renderShipmentModal(); };
 }
@@ -275,8 +337,9 @@ function confirmShipment() {
 
   const mode = TRANSPORT_MODES[opts.modeId];
   const carrier = costs.carrier;
+  const bank = BANKS[opts.bankId];
   addLog(`【Shipment確定】${CITIES[opts.fromId].name}→${CITIES[opts.toId].name} | ${INCOTERMS[opts.incotermId].name} | ${mode.name} | ${carrier.name}`);
-  addLog(`貿易費用 -$${costs.playerTotal.toLocaleString()} / 所要約${costs.totalDays}日`);
+  addLog(`${bank.name} / ${costs.exportSys.name} / 書類${costs.docIds.length}点 / -$${costs.playerTotal.toLocaleString()} / 約${costs.totalDays}日`);
   closeShipmentModal();
   render();
 }
@@ -369,8 +432,8 @@ function showIntroModal() {
     <p>現実の国際貿易フローを体験するシミュレーションです。</p>
     <ul>
       <li><strong>仕入れ</strong> → 現地倉庫に入庫</li>
-      <li><strong>Shipment手配</strong> → インコタームズ・輸送手段・船会社/航空会社・通関業者を選択</li>
-      <li><strong>貿易フロー</strong> → 書類→輸出通関→積込→輸送→輸入通関→搬入（日数進行）</li>
+      <li><strong>Shipment手配</strong> → 銀行・NACCS・CY・船会社/航空会社・通関業者</li>
+      <li><strong>貿易フロー</strong> → 書類→銀行→NACCS→輸出通関→CY→積込→輸送→輸入通関→関税納付→搬出</li>
       <li><strong>出張</strong> → 別都市の倉庫で売買（貨物はShipmentで別送）</li>
       <li>目標: 総資産 $${CONFIG.winMoney.toLocaleString()} を ${CONFIG.maxDays}日以内に達成</li>
     </ul>`;
@@ -430,7 +493,23 @@ function renderLocation() {
     <p class="location-info__desc">${city.desc}</p>
     <p class="hint">🚢 ${city.port}</p>
     <p class="hint">✈️ ${city.airport}</p>
+    <p class="hint">🏗️ ${city.containerYard || '—'}</p>
+    <p class="hint">💻 ${CUSTOMS_SYSTEMS[city.customsSystem]?.name || '書面通関'}</p>
     <p class="hint">🏛️ ${city.customs} / 関税${Math.round(city.tariffRate * 100)}%</p>`;
+}
+
+function renderBankPanel() {
+  const el = document.getElementById('bank-panel');
+  if (!el) return;
+  const bank = BANKS[gameState.selectedBank] || getDefaultBank(gameState.currentCity);
+  el.innerHTML = Object.values(BANKS).map((b) => `
+    <button class="incoterm-btn ${gameState.selectedBank === b.id ? 'incoterm-btn--active' : ''}" data-bank="${b.id}" ${gameOver ? 'disabled' : ''}>
+      <strong>${b.name}</strong><span>${b.naccsLinked ? 'NACCS連携' : '国際取引'} / T/T $${b.ttFee}</span>
+    </button>`).join('')
+    + `<p class="hint incoterm-hint">${bank.desc} L/C手数料×${bank.lcFeeMult} / 為替スプレッド${(bank.fxSpread * 100).toFixed(1)}%</p>`;
+  el.querySelectorAll('[data-bank]').forEach((b) => {
+    b.onclick = () => { gameState.selectedBank = b.dataset.bank; shipmentForm.bankId = b.dataset.bank; renderBankPanel(); };
+  });
 }
 
 function renderWarehouse() {
@@ -469,14 +548,18 @@ function renderShipments() {
     const progress = sh.stages.map((st, i) =>
       `<span class="pipeline-step ${i < sh.stageIndex ? 'pipeline-step--done' : i === sh.stageIndex ? 'pipeline-step--active' : ''}">${getStageIcon(st.id)}</span>`
     ).join('');
+    const bank = BANKS[sh.bank];
+    const docsReady = sh.documentStatus ? sh.documentStatus.filter((d) => d.ready).length : 0;
+    const docsTotal = sh.documentStatus ? sh.documentStatus.length : 0;
     return `
       <div class="shipment-card">
         <div class="shipment-card__head">
           <strong>${CITIES[sh.from].flag}→${CITIES[sh.to].flag}</strong>
-          <span>${mode.icon} ${INCOTERMS[sh.incoterm].name}</span>
+          <span>${mode.icon} ${INCOTERMS[sh.incoterm].name} / ${bank?.name || ''}</span>
         </div>
         <div class="pipeline">${progress}</div>
         <p class="hint">${stageInfo.icon} ${stageInfo.label} — 残${sh.stageDaysLeft}日</p>
+        <p class="hint">📋 書類 ${docsReady}/${docsTotal} | 💻 ${CUSTOMS_SYSTEMS[sh.exportSystem]?.name || '—'}</p>
         <p class="hint">${Object.entries(sh.cargo).map(([id, q]) => `${GOODS[id].name}×${q}`).join(', ')}</p>
       </div>`;
   }).join('');
@@ -574,6 +657,7 @@ function render() {
   renderWarehouse();
   document.getElementById('warehouse-city').textContent = CITIES[gameState.currentCity].name;
   renderRemoteWarehouses();
+  renderBankPanel();
   renderIncotermPanel();
   renderTravelAndShip();
   renderShipments();

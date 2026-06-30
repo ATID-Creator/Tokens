@@ -8,19 +8,23 @@ export const CONFIG = {
   warehouseCapacity: 80,
   maxDays: 150,
   winMoney: 120000,
-  saveKey: 'asia-trade-sim-save-v3',
+  saveKey: 'asia-trade-sim-save-v4',
   defaultIncoterm: 'FOB',
   personalTravelFee: 120,
   maxActiveShipments: 5,
 };
 
 export const TRADE_STAGES = [
-  { id: 'documents', label: '書類作成', icon: '📋' },
+  { id: 'documents', label: '通関書類作成', icon: '📋' },
+  { id: 'bank', label: '銀行手続', icon: '🏦' },
+  { id: 'naccs', label: 'NACCS/電子申告', icon: '💻' },
   { id: 'export_customs', label: '輸出通関', icon: '🛂' },
+  { id: 'container_yard', label: 'コンテナヤード', icon: '🏗️' },
   { id: 'loading', label: '積込み', icon: '📦' },
   { id: 'transit', label: '輸送中', icon: '🚢' },
   { id: 'import_customs', label: '輸入通関', icon: '🏛️' },
-  { id: 'delivery', label: '搬入完了', icon: '✅' },
+  { id: 'duty_payment', label: '関税納付', icon: '💴' },
+  { id: 'delivery', label: '搬出・入庫', icon: '✅' },
 ];
 
 export const COST_TYPES = {
@@ -38,6 +42,12 @@ export const COST_TYPES = {
   forwarderFee: { label: 'フォワーダー手数料', icon: '🌐' },
   lcFee: { label: 'L/C手数料', icon: '🏦' },
   inspectionFee: { label: '検査・検疫', icon: '🔍' },
+  containerYardFee: { label: 'CYターミナル', icon: '🏗️' },
+  demurrage: { label: 'デマレージ/D&D', icon: '⏱️' },
+  naccsFee: { label: 'NACCS/電子通関', icon: '💻' },
+  bankFee: { label: '銀行手数料', icon: '🏦' },
+  fxFee: { label: '為替手数料', icon: '💱' },
+  dutyPaymentFee: { label: '関税納付手数料', icon: '💴' },
 };
 
 export const TRANSPORT_MODES = {
@@ -87,44 +97,125 @@ export const FORWARDERS = {
 };
 
 export const TRADE_DOCUMENTS = {
-  commercial_invoice: { id: 'commercial_invoice', name: 'Commercial Invoice', label: '商業送り状', required: true, cost: 0 },
-  packing_list: { id: 'packing_list', name: 'Packing List', label: '梱包明細書', required: true, cost: 0 },
-  bill_of_lading: { id: 'bill_of_lading', name: 'B/L', label: '船荷証券', modes: ['sea'], cost: 30 },
-  air_waybill: { id: 'air_waybill', name: 'AWB', label: '航空運送状', modes: ['air'], cost: 40 },
-  cmr: { id: 'cmr', name: 'CMR', label: '国際道路運送状', modes: ['rail'], cost: 25 },
-  certificate_of_origin: { id: 'certificate_of_origin', name: 'C/O', label: '原産地証明書', optional: true, cost: 90, ftaBonus: 0.15 },
+  commercial_invoice: { id: 'commercial_invoice', name: 'Invoice', label: '商業送り状（INVOICE）', required: true, cost: 0, category: 'commercial' },
+  packing_list: { id: 'packing_list', name: 'P/L', label: '梱包明細書（P/L）', required: true, cost: 0, category: 'commercial' },
+  shipping_instruction: { id: 'shipping_instruction', name: 'S/I', label: '船積指示書（S/I）', required: true, cost: 15, category: 'shipping', modes: ['sea'] },
+  bill_of_lading: { id: 'bill_of_lading', name: 'B/L', label: '船荷証券（B/L）', modes: ['sea'], cost: 30, category: 'shipping' },
+  air_waybill: { id: 'air_waybill', name: 'AWB', label: '航空運送状（AWB）', modes: ['air'], cost: 40, category: 'shipping' },
+  cmr: { id: 'cmr', name: 'CMR', label: '国際道路運送状', modes: ['rail'], cost: 25, category: 'shipping' },
+  export_declaration: { id: 'export_declaration', name: 'E/D', label: '輸出申告書（Export Declaration）', required: true, cost: 20, category: 'customs' },
+  import_declaration: { id: 'import_declaration', name: 'I/D', label: '輸入申告書（Import Declaration）', required: true, cost: 25, category: 'customs' },
+  customs_power: { id: 'customs_power', name: '委任状', label: '通関委任状（Customs POA）', required: true, cost: 10, category: 'customs' },
+  naccs_manifest: { id: 'naccs_manifest', name: 'NACCS', label: 'NACCS貨物情報（電子マニフェスト）', cost: 35, category: 'electronic', systems: ['naccs'] },
+  delivery_order: { id: 'delivery_order', name: 'D/O', label: 'デリバリーオーダー（D/O）', cost: 20, category: 'shipping', modes: ['sea'] },
+  certificate_of_origin: { id: 'certificate_of_origin', name: 'C/O', label: '原産地証明書', optional: true, cost: 90, ftaBonus: 0.15, category: 'commercial' },
+  phytosanitary: { id: 'phytosanitary', name: '検疫', label: '植物検疫証明書', cost: 110, category: 'regulatory' },
+  lc_documents: { id: 'lc_documents', name: 'L/C', label: '信用状関連書類セット', cost: 60, category: 'bank', paymentTerms: ['lc'] },
+};
+
+export const BANKS = {
+  mufg: { id: 'mufg', name: '三菱UFJ銀行', country: '🇯🇵', lcFeeMult: 1.0, ttFee: 38, fxSpread: 0.011, naccsLinked: true, desc: 'NACCS連携口座。L/C実務に強いメガバンク。' },
+  smbc: { id: 'smbc', name: '三井住友銀行', country: '🇯🇵', lcFeeMult: 0.98, ttFee: 35, fxSpread: 0.012, naccsLinked: true, desc: '貿易融資・為替コストバランス型。' },
+  mizuho: { id: 'mizuho', name: 'みずほ銀行', country: '🇯🇵', lcFeeMult: 1.02, ttFee: 40, fxSpread: 0.010, naccsLinked: true, desc: '為替スプレッドが狭い。大口取引向け。' },
+  hsbc: { id: 'hsbc', name: 'HSBC', country: '🇬🇧', lcFeeMult: 1.12, ttFee: 48, fxSpread: 0.014, naccsLinked: false, desc: 'アジア全域の貿易ネットワーク。' },
+  dbs: { id: 'dbs', name: 'DBS Bank', country: '🇸🇬', lcFeeMult: 1.05, ttFee: 42, fxSpread: 0.013, naccsLinked: false, hub: 'singapore', desc: 'ASEAN貿易のハブ銀行。' },
+  icbc: { id: 'icbc', name: '中国工商銀行', country: '🇨🇳', lcFeeMult: 0.92, ttFee: 30, fxSpread: 0.015, naccsLinked: false, hub: 'shanghai', desc: '中国発取引で低コスト。' },
+};
+
+export const CUSTOMS_SYSTEMS = {
+  naccs: {
+    id: 'naccs', name: 'NACCS', fullName: 'Nippon Automated Cargo & Port Consolidated System',
+    cities: ['tokyo'], fee: 48, speedMult: 0.75, errorRate: 0.04,
+    desc: '日本税関の電子データ処理システム。海上・航空貨物の申告を電子化。',
+  },
+  ktnet: {
+    id: 'ktnet', name: 'KTNET/uTradeHub', fullName: '韓国貿易通関プラットフォーム',
+    cities: ['seoul'], fee: 40, speedMult: 0.8, errorRate: 0.05,
+    desc: '韓国の電子通関。仁川・釜山経由の貨物に適用。',
+  },
+  single_window: {
+    id: 'single_window', name: '中国单一窗口', fullName: '国际贸易单一窗口',
+    cities: ['shanghai'], fee: 35, speedMult: 0.82, errorRate: 0.06,
+    desc: '中国の貿易単一窓口。輸出入申告の電子化。',
+  },
+  trade_net: {
+    id: 'trade_net', name: 'TradeNet', fullName: 'シンガポール電子通関',
+    cities: ['singapore'], fee: 42, speedMult: 0.78, errorRate: 0.03,
+    desc: 'シンガポールの電子通関。処理速度が速い。',
+  },
+  manual: {
+    id: 'manual', name: '書面申告', fullName: 'Paper-based Customs Entry',
+    cities: [], fee: 0, speedMult: 1.3, errorRate: 0.12,
+    desc: '電子システム非対応港向け。時間がかかる。',
+  },
+};
+
+export const CONTAINER_TYPES = {
+  gp20: { id: 'gp20', name: "20'GP", teu: 1, capacity: 28, costMult: 1.0 },
+  gp40: { id: 'gp40', name: "40'GP", teu: 2, capacity: 58, costMult: 1.65 },
+  hc40: { id: 'hc40', name: "40'HC", teu: 2, capacity: 68, costMult: 1.85 },
+};
+
+export const CONTAINER_YARDS = {
+  tokyo: [
+    { id: 'tokyo_oi', name: '大井コンテナターミナル', operator: 'ONE/東京港', costMult: 1.0, freeDays: 4, congestion: 0.12 },
+    { id: 'tokyo_kawasaki', name: '川崎臨港CY', operator: 'JPN CY', costMult: 0.88, freeDays: 3, congestion: 0.18 },
+  ],
+  shanghai: [
+    { id: 'sha_yangshan', name: '洋山深水港CY', operator: 'COSCO', costMult: 0.95, freeDays: 5, congestion: 0.15 },
+    { id: 'sha_waigaoqiao', name: '外高桥CY', operator: 'SIPG', costMult: 0.85, freeDays: 3, congestion: 0.22 },
+  ],
+  seoul: [
+    { id: 'sel_busan', name: '釜山新港CY', operator: 'HMM', costMult: 0.9, freeDays: 4, congestion: 0.14 },
+  ],
+  singapore: [
+    { id: 'sg_psa', name: 'PSA Singapore CY', operator: 'PSA', costMult: 1.1, freeDays: 5, congestion: 0.10 },
+  ],
+  bangkok: [
+    { id: 'bkk_leam', name: 'Laem Chabang CY', operator: 'LCIT', costMult: 0.82, freeDays: 3, congestion: 0.16 },
+  ],
+  mumbai: [
+    { id: 'bom_jnpt', name: 'JNPT CY', operator: 'JNPT', costMult: 0.95, freeDays: 2, congestion: 0.28 },
+  ],
+  hanoi: [
+    { id: 'han_haiphong', name: 'ハイフォンCY', operator: 'VIP Green', costMult: 0.78, freeDays: 3, congestion: 0.18 },
+  ],
+  jakarta: [
+    { id: 'jkt_tanjung', name: 'Tanjung Priok CY', operator: 'IPC', costMult: 0.85, freeDays: 3, congestion: 0.20 },
+  ],
 };
 
 export const PAYMENT_TERMS = {
-  tt_advance: { id: 'tt_advance', name: 'T/T 前払い', desc: '即時決済。最も一般的。', modifier: 1.0, lcFee: 0 },
-  tt_deferred: { id: 'tt_deferred', name: 'T/T 後払い（30日）', desc: '資金繰りに有利だが2%割増。', modifier: 1.02, lcFee: 0 },
-  lc: { id: 'lc', name: 'L/C（信用状）', desc: '銀行保証。手数料$180だが相手先リスク低。', modifier: 1.04, lcFee: 180 },
+  tt_advance: { id: 'tt_advance', name: 'T/T 前払い', desc: '電信送金（T/T）。即時決済。', modifier: 1.0, lcFee: 0, needsBankDays: 0 },
+  tt_deferred: { id: 'tt_deferred', name: 'T/T 後払い（30日）', desc: 'D/A相当。資金繰り有利だが2%割増。', modifier: 1.02, lcFee: 0, needsBankDays: 0 },
+  lc: { id: 'lc', name: 'L/C（信用状）', desc: '銀行が代金支払を保証。開設に3〜5日。', modifier: 1.04, lcFee: 180, needsBankDays: 3 },
+  dp: { id: 'dp', name: 'D/P（手形渡し）', desc: '銀行が書類と引換に代金回収。', modifier: 1.01, lcFee: 90, needsBankDays: 2 },
 };
 
 export const INCOTERMS = {
   EXW: {
     id: 'EXW', name: 'EXW', fullName: 'Ex Works（工場渡し）',
     desc: '引渡しのみ。以降の費用・リスクすべて買主負担。',
-    sellerPays: [], buyerPays: ['inlandTransport', 'exportClearance', 'originHandling', 'freight', 'insurance', 'importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'forwarderFee'],
+    sellerPays: [], buyerPays: ['inlandTransport', 'exportClearance', 'originHandling', 'freight', 'insurance', 'importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'forwarderFee', 'containerYardFee', 'naccsFee', 'bankFee', 'fxFee', 'dutyPaymentFee'],
     purchaseModifier: 1.0,
   },
   FOB: {
     id: 'FOB', name: 'FOB', fullName: 'Free On Board（本船渡し）',
     desc: '本船積みまで売主負担。以降は買主。',
-    sellerPays: ['exportClearance', 'originHandling'], buyerPays: ['freight', 'insurance', 'importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'forwarderFee'],
+    sellerPays: ['exportClearance', 'originHandling'], buyerPays: ['freight', 'insurance', 'importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'forwarderFee', 'containerYardFee', 'naccsFee', 'bankFee', 'fxFee', 'dutyPaymentFee'],
     purchaseModifier: 1.03,
   },
   CIF: {
     id: 'CIF', name: 'CIF', fullName: 'Cost, Insurance & Freight',
     desc: '目的港まで運賃・保険込み。通関・関税は買主。',
-    sellerPays: ['exportClearance', 'originHandling', 'freight', 'insurance'], buyerPays: ['importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'forwarderFee'],
+    sellerPays: ['exportClearance', 'originHandling', 'freight', 'insurance'], buyerPays: ['importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'forwarderFee', 'containerYardFee', 'naccsFee', 'bankFee', 'fxFee', 'dutyPaymentFee'],
     purchaseModifier: 1.07,
   },
   DDP: {
     id: 'DDP', name: 'DDP', fullName: 'Delivered Duty Paid',
     desc: '関税込みで指定場所まで。買主の追加費用なし。',
-    sellerPays: ['exportClearance', 'originHandling', 'freight', 'insurance', 'importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee'],
-    buyerPays: ['forwarderFee'],
+    sellerPays: ['exportClearance', 'originHandling', 'freight', 'insurance', 'importClearance', 'destHandling', 'importDuty', 'vat', 'documentFees', 'brokerFee', 'containerYardFee', 'naccsFee', 'bankFee'],
+    buyerPays: ['forwarderFee', 'fxFee', 'dutyPaymentFee'],
     purchaseModifier: 1.16,
   },
 };
@@ -145,13 +236,15 @@ export const CITIES = {
   tokyo: {
     id: 'tokyo', name: '東京', country: '日本', flag: '🇯🇵',
     port: '東京港', airport: '成田国際空港', customs: '東京税関',
-    desc: 'テクノロジーと精密機器の中心地。',
+    containerYard: '大井コンテナターミナル', customsSystem: 'naccs',
+    desc: 'テクノロジーと精密機器の中心地。NACCS電子通関対応。',
     specialties: ['electronics', 'automobiles'],
     tariffRate: 0.05, vatRate: 0.10, portFee: 12, airportFee: 22, customsFee: 180,
   },
   shanghai: {
     id: 'shanghai', name: '上海', country: '中国', flag: '🇨🇳',
     port: '上海港', airport: '浦东国際空港', customs: '上海税関',
+    containerYard: '洋山深水港CY', customsSystem: 'single_window',
     desc: '世界最大級の港。製造業のハブ。',
     specialties: ['textiles', 'electronics'],
     tariffRate: 0.08, vatRate: 0.13, portFee: 8, airportFee: 18, customsFee: 150,
@@ -159,6 +252,7 @@ export const CITIES = {
   seoul: {
     id: 'seoul', name: 'ソウル', country: '韓国', flag: '🇰🇷',
     port: '釜山港', airport: '仁川国際空港', customs: '仁川税関',
+    containerYard: '釜山新港CY', customsSystem: 'ktnet',
     desc: '半導体とK-ビューティーの都市。',
     specialties: ['cosmetics', 'electronics'],
     tariffRate: 0.06, vatRate: 0.10, portFee: 10, airportFee: 20, customsFee: 160,
@@ -166,6 +260,7 @@ export const CITIES = {
   singapore: {
     id: 'singapore', name: 'シンガポール', country: 'シンガポール', flag: '🇸🇬',
     port: 'シンガポール港', airport: 'チャンギ空港', customs: 'シンガポール税関',
+    containerYard: 'PSA Singapore CY', customsSystem: 'trade_net',
     desc: '東南アジアの物流・金融ハブ。',
     specialties: ['spices', 'seafood'],
     tariffRate: 0.0, vatRate: 0.09, portFee: 15, airportFee: 24, customsFee: 120,
@@ -287,6 +382,28 @@ export function getAvailableCarriers(modeId, fromId) {
     });
   }
   return Object.values(SHIPPING_LINES);
+}
+
+export function getContainerYards(cityId) {
+  return CONTAINER_YARDS[cityId] || [{ id: 'default', name: `${CITIES[cityId]?.port || '港'}CY`, operator: 'Local', costMult: 1, freeDays: 3, congestion: 0.15 }];
+}
+
+export function getCustomsSystem(cityId) {
+  const city = CITIES[cityId];
+  if (!city?.customsSystem) return CUSTOMS_SYSTEMS.manual;
+  return CUSTOMS_SYSTEMS[city.customsSystem] || CUSTOMS_SYSTEMS.manual;
+}
+
+export function getDefaultBank(cityId) {
+  if (cityId === 'tokyo') return BANKS.mufg;
+  if (cityId === 'shanghai') return BANKS.icbc;
+  if (cityId === 'singapore') return BANKS.dbs;
+  return BANKS.hsbc;
+}
+
+export function resolveCustomsSystemForRoute(fromId, toId, side) {
+  const cityId = side === 'export' ? fromId : toId;
+  return getCustomsSystem(cityId);
 }
 
 export function getAvailableModes(fromId, toId) {
