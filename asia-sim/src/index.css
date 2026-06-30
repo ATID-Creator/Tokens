@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+#root {
+  min-height: 100vh;
+}
