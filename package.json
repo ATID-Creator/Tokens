@@ -15,7 +15,8 @@
     "publish": "truffle publish",
     "pretest": "npm run lint",
     "test": "truffle test",
-    "coverage": "solidity-coverage"
+    "coverage": "solidity-coverage",
+    "game": "npx serve asia-trade-sim -p 3000"
   },
   "repository": {
     "type": "git",
