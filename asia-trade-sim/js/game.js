@@ -499,17 +499,16 @@ function showGameEndModal(success) {
   const closeBtn = document.getElementById('modal-close');
   const assets = calcTotalAssets();
   content.innerHTML = success ? `
-    <h2>🎉 国際貿易の勝者！</h2>
-    <p>船会社・通関・インコタームズを駆使し、アジア市場を制覇しました。</p>
-    <p>総資産: <strong style="color:var(--accent-gold)">$${assets.toLocaleString()}</strong></p>
-    <p>累計貿易費用: $${gameState.totalTradeCosts.toLocaleString()} / 完了Shipment: ${gameState.completedShipments || 0}件</p>
+    <h2>🎉 MISSION CLEAR</h2>
+    <p>インコタームズと物流網を駆使し、アジア市場を制覇しました！</p>
+    <p class="game-dialog__highlight">総資産: <strong style="color:var(--accent-gold)">$${assets.toLocaleString()}</strong></p>
+    <p>累計貿易費: $${gameState.totalTradeCosts.toLocaleString()} / 完了Shipment: ${gameState.completedShipments || 0}件</p>
   ` : `
-    <h2>💸 資金ショート</h2>
-    <p>物流費・関税・通関コストが経営を圧迫しました。</p>
-    <p>総資産: <strong style="color:var(--accent-crimson)">$${assets.toLocaleString()}</strong></p>
-    <p>累計貿易費用: $${gameState.totalTradeCosts.toLocaleString()}</p>
+    <h2>💸 GAME OVER</h2>
+    <p>物流費と関税が経営を圧迫しました。再挑戦してください。</p>
+    <p class="game-dialog__highlight">総資産: <strong style="color:var(--accent-crimson)">$${assets.toLocaleString()}</strong></p>
   `;
-  closeBtn.textContent = '再挑戦';
+  closeBtn.textContent = '▶ 再挑戦';
   closeBtn.onclick = () => { modal.classList.add('hidden'); gameState = createInitialState(); gameOver = false; render(); showIntroModal(); };
   modal.classList.remove('hidden');
 }
@@ -517,16 +516,16 @@ function showGameEndModal(success) {
 function showIntroModal() {
   const content = document.getElementById('modal-content');
   document.getElementById('modal-close').onclick = () => document.getElementById('modal-overlay').classList.add('hidden');
-  document.getElementById('modal-close').textContent = '貿易を開始';
+  document.getElementById('modal-close').textContent = '▶ START';
   content.innerHTML = `
-    <h2>⛩ アジア貿易シミュレーション</h2>
-    <p>現実の国際貿易フローを体験するシミュレーションです。</p>
+    <h2>⚓ TRADE EMPIRE</h2>
+    <p>現実の国際貿易フローを体験するシミュレーションゲームです。</p>
     <ul>
       <li><strong>仕入れ</strong> → 現地倉庫に入庫</li>
-      <li><strong>Shipment手配</strong> → 銀行・NACCS・CY・船会社/航空会社・通関業者</li>
-      <li><strong>貿易フロー</strong> → 書類→銀行→NACCS→輸出通関→CY→積込→輸送→輸入通関→関税納付→搬出</li>
-      <li><strong>出張</strong> → 別都市の倉庫で売買（貨物はShipmentで別送）</li>
-      <li>目標: 総資産 $${CONFIG.winMoney.toLocaleString()} を ${CONFIG.maxDays}日以内に達成</li>
+      <li><strong>Shipment</strong> → 銀行・NACCS・CY・船会社を手配</li>
+      <li><strong>貿易フロー</strong> → 書類→銀行→通関→輸送→搬入</li>
+      <li><strong>出張</strong> → 別都市で売買</li>
+      <li>目標: 総資産 <strong style="color:var(--accent-gold)">$${CONFIG.winMoney.toLocaleString()}</strong> / ${CONFIG.maxDays}日</li>
     </ul>`;
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
@@ -562,12 +561,13 @@ function getPriceTrend(goodId) {
 
 function renderHeaderStats() {
   const assets = calcTotalAssets();
+  const daysLeft = CONFIG.maxDays - gameState.day;
   document.getElementById('header-stats').innerHTML = `
-    <div class="stat"><div class="stat__label">現金</div><div class="stat__value ${gameState.money < 3000 ? 'stat__value--danger' : ''}">$${gameState.money.toLocaleString()}</div></div>
-    <div class="stat"><div class="stat__label">総資産</div><div class="stat__value ${assets >= CONFIG.winMoney * 0.8 ? 'stat__value--success' : ''}">$${assets.toLocaleString()}</div></div>
-    <div class="stat"><div class="stat__label">日数</div><div class="stat__value">${gameState.day}/${CONFIG.maxDays}</div></div>
-    <div class="stat"><div class="stat__label">Shipment</div><div class="stat__value">${gameState.shipments.filter((s) => s.status === 'active').length}件</div></div>
-    <div class="stat"><div class="stat__label">貿易費</div><div class="stat__value">$${gameState.totalTradeCosts.toLocaleString()}</div></div>`;
+    <div class="stat"><div class="stat__label">💰 CASH</div><div class="stat__value ${gameState.money < 3000 ? 'stat__value--danger' : ''}">$${gameState.money.toLocaleString()}</div></div>
+    <div class="stat"><div class="stat__label">📊 ASSETS</div><div class="stat__value ${assets >= CONFIG.winMoney * 0.8 ? 'stat__value--success' : ''}">$${assets.toLocaleString()}</div></div>
+    <div class="stat"><div class="stat__label">📅 DAY</div><div class="stat__value">${gameState.day}<span style="opacity:0.5;font-size:0.7rem">/${CONFIG.maxDays}</span></div></div>
+    <div class="stat"><div class="stat__label">⏳ LEFT</div><div class="stat__value ${daysLeft <= 15 ? 'stat__value--danger' : ''}">${daysLeft}</div></div>
+    <div class="stat"><div class="stat__label">🚢 SHIP</div><div class="stat__value">${gameState.shipments.filter((s) => s.status === 'active').length}</div></div>`;
 }
 
 function renderLocation() {
@@ -643,8 +643,9 @@ function renderShipments() {
     const stage = sh.stages[sh.stageIndex];
     const stageInfo = { icon: getStageIcon(stage.id), label: getStageLabel(stage.id) };
     const mode = TRANSPORT_MODES[sh.mode];
+    const progressPct = Math.round((sh.stageIndex / sh.stages.length) * 100);
     const progress = sh.stages.map((st, i) =>
-      `<span class="pipeline-step ${i < sh.stageIndex ? 'pipeline-step--done' : i === sh.stageIndex ? 'pipeline-step--active' : ''}">${getStageIcon(st.id)}</span>`
+      `<span class="pipeline-step ${i < sh.stageIndex ? 'pipeline-step--done' : i === sh.stageIndex ? 'pipeline-step--active' : ''}" title="${getStageLabel(st.id)}">${getStageIcon(st.id)}</span>`
     ).join('');
     const bank = BANKS[sh.bank];
     const docsReady = sh.documentStatus ? sh.documentStatus.filter((d) => d.ready).length : 0;
@@ -652,13 +653,14 @@ function renderShipments() {
     return `
       <div class="shipment-card">
         <div class="shipment-card__head">
-          <strong>${CITIES[sh.from].flag}→${CITIES[sh.to].flag}</strong>
-          <span>${mode.icon} ${INCOTERMS[sh.incoterm].name} / ${bank?.name || ''}</span>
+          <strong>${CITIES[sh.from].flag} → ${CITIES[sh.to].flag}</strong>
+          <span>${mode.icon} ${INCOTERMS[sh.incoterm].name}</span>
         </div>
+        <div class="progress-bar"><div class="progress-bar__fill" style="width:${progressPct}%"></div></div>
         <div class="pipeline">${progress}</div>
-        <p class="hint">${stageInfo.icon} ${stageInfo.label} — 残${sh.stageDaysLeft}日</p>
-        <p class="hint">📋 書類 ${docsReady}/${docsTotal} | 💻 ${CUSTOMS_SYSTEMS[sh.exportSystem]?.name || '—'}</p>
-        <p class="hint">${Object.entries(sh.cargo).map(([id, q]) => `${GOODS[id].name}×${q}`).join(', ')}</p>
+        <p class="hint">${stageInfo.icon} ${stageInfo.label} — 残り ${sh.stageDaysLeft} 日</p>
+        <p class="hint">📋 ${docsReady}/${docsTotal} · 🏦 ${bank?.name || ''}</p>
+        <p class="hint">${Object.entries(sh.cargo).map(([id, q]) => `${GOODS[id].name}×${q}`).join(' / ')}</p>
       </div>`;
   }).join('');
 }
@@ -694,8 +696,8 @@ function renderTravelAndShip() {
     return `<div class="route-card">
       <div class="route-card__info"><span>${c.flag} ${c.name}</span><span class="hint">${d}日 / ${rail ? '🚂陸路可' : '🚢海上'}</span></div>
       <div class="route-card__actions">
-        <button class="btn btn--ghost btn--sm" data-travel="${id}" ${disabled ? 'disabled' : ''}>✈️出張</button>
-        <button class="btn btn--primary btn--sm" data-ship="${id}" ${disabled ? 'disabled' : ''}>📦Shipment</button>
+        <button class="game-btn game-btn--blue game-btn--sm" data-travel="${id}" ${disabled ? 'disabled' : ''}>✈️ 出張</button>
+        <button class="game-btn game-btn--gold game-btn--sm" data-ship="${id}" ${disabled ? 'disabled' : ''}>📦 Shipment</button>
       </div></div>`;
   }).join('');
 
@@ -729,8 +731,8 @@ function renderMarket() {
       <span class="good-name">${g.icon} ${g.name}<small class="hs-code">HS${g.hsCode}</small>${city.specialties.includes(id) ? '<span class="specialty-tag">特産</span>' : ''}</span>
       <span class="price ${tc}">$${price.toLocaleString()}</span><span class="${tc}">${ts}</span><span>${owned}</span>
       <span class="market-actions-cell">
-        <button class="btn btn--buy" data-buy="${id}" ${disabled ? 'disabled' : ''}>買う</button>
-        <button class="btn btn--sell" data-sell="${id}" ${disabled || !owned ? 'disabled' : ''}>売る</button>
+        <button class="game-btn game-btn--buy" data-buy="${id}" ${disabled ? 'disabled' : ''}>BUY</button>
+        <button class="game-btn game-btn--sell" data-sell="${id}" ${disabled || !owned ? 'disabled' : ''}>SELL</button>
       </span></div>`;
   });
 

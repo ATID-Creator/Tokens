@@ -6,144 +6,153 @@
   <title>アジア貿易シミュレーション</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;700;800&family=Orbitron:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-  <div id="app">
-    <header class="header">
-      <div class="header__brand">
-        <span class="header__icon">⛩</span>
-        <div>
-          <h1>アジア貿易シミュレーション</h1>
-          <p class="header__subtitle">International Trade Flow — 船会社・通関・航空貨物のリアルな貿易体験</p>
+<body class="game-body">
+  <div class="game-bg" aria-hidden="true"></div>
+  <div class="game-vignette" aria-hidden="true"></div>
+
+  <div id="app" class="game-shell">
+    <header class="hud-header game-frame">
+      <div class="hud-header__left">
+        <div class="game-logo">
+          <span class="game-logo__icon">⚓</span>
+          <div>
+            <h1 class="game-title">アジア貿易シミュレーション</h1>
+            <p class="game-subtitle">TRADE EMPIRE — 東洋の商路を制覇せよ</p>
+          </div>
         </div>
       </div>
-      <div class="header__stats" id="header-stats"></div>
+      <div class="hud-header__stats game-stat-bar" id="header-stats"></div>
     </header>
 
-    <main class="main">
-      <aside class="panel panel--sidebar">
-        <section class="card">
-          <h2>現在地</h2>
-          <div id="location-info" class="location-info"></div>
+    <main class="game-layout">
+      <aside class="game-column game-column--left">
+        <section class="game-frame game-panel">
+          <h2 class="panel-title"><span class="panel-title__icon">📍</span>現在地</h2>
+          <div id="location-info" class="location-info location-card"></div>
         </section>
 
-        <section class="card">
-          <h2>倉庫（<span id="warehouse-city">—</span>）</h2>
-          <div id="cargo-list" class="cargo-list"></div>
-          <p class="hint">容量: <span id="cargo-capacity">0</span> 単位</p>
+        <section class="game-frame game-panel">
+          <h2 class="panel-title"><span class="panel-title__icon">🏭</span>倉庫 — <span id="warehouse-city">—</span></h2>
+          <div id="cargo-list" class="cargo-list inventory-list"></div>
+          <p class="game-hint">容量 <span id="cargo-capacity">0</span> 単位</p>
         </section>
 
-        <section class="card">
-          <h2>他都市の在庫</h2>
+        <section class="game-frame game-panel">
+          <h2 class="panel-title"><span class="panel-title__icon">🌏</span>他都市在庫</h2>
           <div id="remote-warehouses" class="remote-warehouses"></div>
         </section>
 
-        <section class="card">
-          <h2>取引銀行</h2>
+        <section class="game-frame game-panel">
+          <h2 class="panel-title"><span class="panel-title__icon">🏦</span>取引銀行</h2>
           <div id="bank-panel" class="incoterm-panel"></div>
         </section>
 
-        <section class="card">
-          <h2>インコタームズ（仕入条件）</h2>
+        <section class="game-frame game-panel">
+          <h2 class="panel-title"><span class="panel-title__icon">📜</span>インコタームズ</h2>
           <div id="incoterm-panel" class="incoterm-panel"></div>
         </section>
 
-        <section class="card">
-          <h2>ルート選択</h2>
+        <section class="game-frame game-panel">
+          <h2 class="panel-title"><span class="panel-title__icon">🗺️</span>ルート選択</h2>
           <div id="travel-list" class="travel-list"></div>
         </section>
       </aside>
 
-      <section class="panel panel--market">
-        <div class="market-header">
-          <h2>市場 — <span id="market-city">—</span></h2>
-          <div class="market-actions">
-            <button id="btn-next-day" class="btn btn--primary">次の日へ進む</button>
-            <button id="btn-save" class="btn btn--ghost">セーブ</button>
-            <button id="btn-load" class="btn btn--ghost">ロード</button>
+      <section class="game-column game-column--main">
+        <div class="action-bar game-frame">
+          <h2 class="panel-title panel-title--large">市場 — <span id="market-city">—</span></h2>
+          <div class="action-bar__buttons">
+            <button id="btn-next-day" class="game-btn game-btn--gold game-btn--lg">▶ 次の日へ</button>
+            <button id="btn-save" class="game-btn game-btn--blue">💾 セーブ</button>
+            <button id="btn-load" class="game-btn game-btn--blue">📂 ロード</button>
           </div>
         </div>
 
-        <div id="event-banner" class="event-banner hidden"></div>
+        <div id="event-banner" class="event-banner game-alert hidden"></div>
 
-        <section class="card card--shipments">
-          <h2>進行中の Shipment（貿易フロー）</h2>
+        <section class="game-frame game-panel card--shipments">
+          <h2 class="panel-title"><span class="panel-title__icon">🚢</span>進行中 Shipment</h2>
           <div id="shipments-panel" class="shipments-panel"></div>
         </section>
 
-        <div id="market-table" class="market-table"></div>
+        <div id="market-table" class="market-table game-frame"></div>
 
-        <section class="card card--log">
-          <h2>貿易日誌</h2>
-          <div id="game-log" class="game-log"></div>
+        <section class="game-frame game-panel card--log">
+          <h2 class="panel-title"><span class="panel-title__icon">📋</span>貿易日誌</h2>
+          <div id="game-log" class="game-log log-panel"></div>
         </section>
       </section>
     </main>
+  </div>
 
-    <div id="modal-overlay" class="modal-overlay hidden">
-      <div class="modal" id="modal">
-        <div id="modal-content"></div>
-        <button id="modal-close" class="btn btn--primary">始める</button>
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="game-dialog game-frame" id="modal">
+      <div class="game-dialog__header">MISSION BRIEFING</div>
+      <div id="modal-content" class="game-dialog__body"></div>
+      <div class="game-dialog__footer">
+        <button id="modal-close" class="game-btn game-btn--gold">始める</button>
       </div>
     </div>
+  </div>
 
-    <div id="shipment-modal-overlay" class="modal-overlay hidden">
-      <div class="modal modal--wide modal--scroll" id="shipment-modal">
-        <h2>📦 Shipment 手配 — 国際貨物輸送</h2>
-        <p id="shipment-modal-route" class="travel-modal__route"></p>
+  <div id="shipment-modal-overlay" class="modal-overlay hidden">
+    <div class="game-dialog game-dialog--wide game-frame modal--scroll" id="shipment-modal">
+      <div class="game-dialog__header">📦 SHIPMENT 手配</div>
+      <p id="shipment-modal-route" class="travel-modal__route"></p>
+      <div class="game-dialog__body">
         <div class="shipment-section">
-          <h3>出荷貨物</h3>
+          <h3 class="section-label">出荷貨物</h3>
           <div id="shipment-cargo-summary" class="tag-list"></div>
         </div>
         <div class="shipment-section">
-          <h3>① インコタームズ</h3>
+          <h3 class="section-label">① インコタームズ</h3>
           <div id="shipment-incoterm-options" class="incoterm-options"></div>
         </div>
         <div class="shipment-section">
-          <h3>② 輸送手段</h3>
+          <h3 class="section-label">② 輸送手段</h3>
           <div id="shipment-mode-options" class="chip-row"></div>
         </div>
         <div class="shipment-section">
-          <h3>③ 船会社 / 航空会社</h3>
+          <h3 class="section-label">③ 船会社 / 航空会社</h3>
           <div id="shipment-carrier-options" class="carrier-list"></div>
         </div>
         <div class="shipment-section">
-          <h3>④ 通関業者（ Customs Broker ）</h3>
+          <h3 class="section-label">④ 通関業者</h3>
           <div id="shipment-broker-options" class="chip-row"></div>
         </div>
         <div class="shipment-section">
-          <h3>⑤ フォワーダー</h3>
+          <h3 class="section-label">⑤ フォワーダー</h3>
           <div id="shipment-forwarder-options" class="chip-row"></div>
         </div>
         <div class="shipment-section">
-          <h3>⑥ 決済条件</h3>
+          <h3 class="section-label">⑥ 決済条件</h3>
           <div id="shipment-payment-options" class="chip-row"></div>
         </div>
         <div class="shipment-section">
-          <h3>⑦ 取引銀行</h3>
+          <h3 class="section-label">⑦ 取引銀行</h3>
           <div id="shipment-bank-options" class="carrier-list"></div>
         </div>
         <div class="shipment-section">
-          <h3>⑧ コンテナ / CY（コンテナヤード）</h3>
+          <h3 class="section-label">⑧ コンテナ / CY</h3>
           <div id="shipment-container-options" class="chip-row"></div>
           <div id="shipment-cy-options"></div>
         </div>
         <div class="shipment-section shipment-section--info">
-          <h3>⑨ NACCS / 電子通関</h3>
+          <h3 class="section-label">⑨ NACCS / 電子通関</h3>
           <div id="shipment-naccs-info" class="naccs-info"></div>
         </div>
         <div class="shipment-section shipment-section--info">
-          <h3>⑩ 通関書類</h3>
+          <h3 class="section-label">⑩ 通関書類</h3>
           <div id="shipment-co-option"></div>
-          <p class="hint">Invoice, P/L, E/D, I/D, 通関委任状, B/L or AWB, D/O, NACCSマニフェスト 等</p>
         </div>
         <div id="shipment-cost-breakdown" class="cost-breakdown"></div>
-        <div class="travel-modal__actions">
-          <button id="shipment-cancel" class="btn btn--ghost">キャンセル</button>
-          <button id="shipment-confirm" class="btn btn--primary">Shipment確定</button>
-        </div>
+      </div>
+      <div class="game-dialog__footer travel-modal__actions">
+        <button id="shipment-cancel" class="game-btn game-btn--blue">キャンセル</button>
+        <button id="shipment-confirm" class="game-btn game-btn--gold">Shipment確定</button>
       </div>
     </div>
   </div>
