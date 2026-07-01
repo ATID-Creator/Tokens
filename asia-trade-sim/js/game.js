@@ -190,6 +190,32 @@ function getShipmentOpts() {
   };
 }
 
+function estimateShipmentCosts(overrides = {}) {
+  const opts = { ...getShipmentOpts(), ...overrides };
+  if (overrides.modeId) {
+    const carriers = getAvailableCarriers(opts.modeId, gameState.currentCity);
+    if (!carriers.find((c) => c.id === opts.carrierId)) {
+      opts.carrierId = carriers[0]?.id;
+    }
+  }
+  return calculateTradeCosts(gameState, opts);
+}
+
+function fmtOptionMeta(costs, { compact = false } = {}) {
+  if (!costs) return '';
+  if (compact) {
+    return `<span class="option-meta"><span class="option-meta__cost">$${costs.playerTotal.toLocaleString()}</span><span class="option-meta__sep">·</span><span class="option-meta__days">${costs.totalDays}日</span></span>`;
+  }
+  return `<div class="option-meta"><span class="option-meta__cost">💰 $${costs.playerTotal.toLocaleString()}</span><span class="option-meta__days">📅 ${costs.totalDays}日</span></div>`;
+}
+
+function fmtPurchaseMeta(incotermId) {
+  const inc = INCOTERMS[incotermId];
+  const pct = Math.round((inc.purchaseModifier - 1) * 100);
+  const label = pct === 0 ? '仕入標準' : `仕入+${pct}%`;
+  return `<span class="option-meta option-meta--small"><span class="option-meta__cost">${label}</span></span>`;
+}
+
 function renderShipmentModal() {
   const from = CITIES[gameState.currentCity];
   const to = CITIES[shipmentForm.destId];
@@ -204,46 +230,85 @@ function renderShipmentModal() {
       `<span class="tag">${GOODS[id].icon} ${GOODS[id].name} ×${q}</span>`
     ).join('') || '<span class="hint">貨物なし</span>';
 
-  document.getElementById('shipment-incoterm-options').innerHTML = Object.values(INCOTERMS).map((t) => `
+  document.getElementById('shipment-incoterm-options').innerHTML = Object.values(INCOTERMS).map((t) => {
+    const costs = estimateShipmentCosts({ incotermId: t.id });
+    return `
     <label class="incoterm-option ${shipmentForm.incoterm === t.id ? 'incoterm-option--active' : ''}">
       <input type="radio" name="sh-incoterm" value="${t.id}" ${shipmentForm.incoterm === t.id ? 'checked' : ''}>
-      <div class="incoterm-option__head"><strong>${t.name}</strong><span>${t.fullName}</span></div>
+      <div class="incoterm-option__head">
+        <strong>${t.name}</strong><span>${t.fullName}</span>
+        ${fmtOptionMeta(costs, { compact: true })}
+      </div>
       <p>${t.desc}</p>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 
-  document.getElementById('shipment-mode-options').innerHTML = modes.map((m) => `
+  document.getElementById('shipment-mode-options').innerHTML = modes.map((m) => {
+    const costs = estimateShipmentCosts({ modeId: m.id });
+    return `
     <button class="select-chip ${shipmentForm.mode === m.id ? 'select-chip--active' : ''}" data-mode="${m.id}">
-      ${m.icon} ${m.name}
-    </button>`).join('');
+      <span class="select-chip__label">${m.icon} ${m.name}</span>
+      ${fmtOptionMeta(costs, { compact: true })}
+    </button>`;
+  }).join('');
 
   const carriers = getAvailableCarriers(shipmentForm.mode, gameState.currentCity);
   if (!carriers.find((c) => c.id === shipmentForm.carrier)) shipmentForm.carrier = carriers[0]?.id;
 
-  document.getElementById('shipment-carrier-options').innerHTML = carriers.map((c) => `
+  document.getElementById('shipment-carrier-options').innerHTML = carriers.map((c) => {
+    const costs = estimateShipmentCosts({ carrierId: c.id });
+    return `
     <label class="carrier-option ${shipmentForm.carrier === c.id ? 'carrier-option--active' : ''}">
       <input type="radio" name="sh-carrier" value="${c.id}" ${shipmentForm.carrier === c.id ? 'checked' : ''}>
       <div class="carrier-option__head">
         <strong>${c.country} ${c.name}</strong>
         <span>信頼度 ${Math.round(c.reliability * 100)}%</span>
+        ${fmtOptionMeta(costs, { compact: true })}
       </div>
       <p>${c.desc}</p>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 
-  document.getElementById('shipment-broker-options').innerHTML = Object.values(CUSTOMS_BROKERS).map((b) => `
-    <button class="select-chip ${shipmentForm.broker === b.id ? 'select-chip--active' : ''}" data-broker="${b.id}">${b.name}</button>`).join('');
+  document.getElementById('shipment-broker-options').innerHTML = Object.values(CUSTOMS_BROKERS).map((b) => {
+    const costs = estimateShipmentCosts({ brokerId: b.id });
+    return `
+    <button class="select-chip ${shipmentForm.broker === b.id ? 'select-chip--active' : ''}" data-broker="${b.id}">
+      <span class="select-chip__label">${b.name}</span>
+      ${fmtOptionMeta(costs, { compact: true })}
+    </button>`;
+  }).join('');
 
-  document.getElementById('shipment-forwarder-options').innerHTML = Object.values(FORWARDERS).map((f) => `
-    <button class="select-chip ${shipmentForm.forwarder === f.id ? 'select-chip--active' : ''}" data-forwarder="${f.id}">${f.name}</button>`).join('');
+  document.getElementById('shipment-forwarder-options').innerHTML = Object.values(FORWARDERS).map((f) => {
+    const costs = estimateShipmentCosts({ forwarderId: f.id });
+    return `
+    <button class="select-chip ${shipmentForm.forwarder === f.id ? 'select-chip--active' : ''}" data-forwarder="${f.id}">
+      <span class="select-chip__label">${f.name}</span>
+      ${fmtOptionMeta(costs, { compact: true })}
+    </button>`;
+  }).join('');
 
-  document.getElementById('shipment-payment-options').innerHTML = Object.values(PAYMENT_TERMS).map((p) => `
-    <button class="select-chip ${shipmentForm.paymentTerm === p.id ? 'select-chip--active' : ''}" data-payment="${p.id}">${p.name}</button>`).join('');
+  document.getElementById('shipment-payment-options').innerHTML = Object.values(PAYMENT_TERMS).map((p) => {
+    const costs = estimateShipmentCosts({ paymentTermId: p.id });
+    return `
+    <button class="select-chip ${shipmentForm.paymentTerm === p.id ? 'select-chip--active' : ''}" data-payment="${p.id}">
+      <span class="select-chip__label">${p.name}</span>
+      ${fmtOptionMeta(costs, { compact: true })}
+    </button>`;
+  }).join('');
 
-  document.getElementById('shipment-bank-options').innerHTML = Object.values(BANKS).map((b) => `
+  document.getElementById('shipment-bank-options').innerHTML = Object.values(BANKS).map((b) => {
+    const costs = estimateShipmentCosts({ bankId: b.id });
+    return `
     <label class="carrier-option ${shipmentForm.bankId === b.id ? 'carrier-option--active' : ''}">
       <input type="radio" name="sh-bank" value="${b.id}" ${shipmentForm.bankId === b.id ? 'checked' : ''}>
-      <div class="carrier-option__head"><strong>${b.country} ${b.name}</strong><span>${b.naccsLinked ? 'NACCS連携' : '国際網'}</span></div>
+      <div class="carrier-option__head">
+        <strong>${b.country} ${b.name}</strong>
+        <span>${b.naccsLinked ? 'NACCS連携' : '国際網'}</span>
+        ${fmtOptionMeta(costs, { compact: true })}
+      </div>
       <p>${b.desc}</p>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 
   const originYards = getContainerYards(gameState.currentCity);
   const destYards = getContainerYards(shipmentForm.destId);
@@ -251,17 +316,35 @@ function renderShipmentModal() {
   if (!destYards.find((y) => y.id === shipmentForm.destCyId)) shipmentForm.destCyId = destYards[0]?.id;
 
   document.getElementById('shipment-container-options').innerHTML = shipmentForm.mode === 'sea'
-    ? Object.values(CONTAINER_TYPES).map((ct) => `
-      <button class="select-chip ${shipmentForm.containerTypeId === ct.id ? 'select-chip--active' : ''}" data-container="${ct.id}">${ct.name} (${ct.capacity}単位)</button>`).join('')
+    ? Object.values(CONTAINER_TYPES).map((ct) => {
+      const costs = estimateShipmentCosts({ containerTypeId: ct.id });
+      return `
+      <button class="select-chip ${shipmentForm.containerTypeId === ct.id ? 'select-chip--active' : ''}" data-container="${ct.id}">
+        <span class="select-chip__label">${ct.name} (${ct.capacity}単位)</span>
+        ${fmtOptionMeta(costs, { compact: true })}
+      </button>`;
+    }).join('')
     : '<p class="hint">航空/陸送はコンテナ不使用</p>';
 
   document.getElementById('shipment-cy-options').innerHTML = shipmentForm.mode === 'sea' ? `
     <p class="hint"><strong>積地CY</strong></p>
-    <div class="chip-row">${originYards.map((y) => `
-      <button class="select-chip ${shipmentForm.originCyId === y.id ? 'select-chip--active' : ''}" data-origin-cy="${y.id}">${y.name}</button>`).join('')}</div>
+    <div class="chip-row">${originYards.map((y) => {
+      const costs = estimateShipmentCosts({ originCyId: y.id });
+      return `
+      <button class="select-chip ${shipmentForm.originCyId === y.id ? 'select-chip--active' : ''}" data-origin-cy="${y.id}">
+        <span class="select-chip__label">${y.name}</span>
+        ${fmtOptionMeta(costs, { compact: true })}
+      </button>`;
+    }).join('')}</div>
     <p class="hint"><strong>揚地CY</strong></p>
-    <div class="chip-row">${destYards.map((y) => `
-      <button class="select-chip ${shipmentForm.destCyId === y.id ? 'select-chip--active' : ''}" data-dest-cy="${y.id}">${y.name}</button>`).join('')}</div>`
+    <div class="chip-row">${destYards.map((y) => {
+      const costs = estimateShipmentCosts({ destCyId: y.id });
+      return `
+      <button class="select-chip ${shipmentForm.destCyId === y.id ? 'select-chip--active' : ''}" data-dest-cy="${y.id}">
+        <span class="select-chip__label">${y.name}</span>
+        ${fmtOptionMeta(costs, { compact: true })}
+      </button>`;
+    }).join('')}</div>`
     : '<p class="hint">—</p>';
 
   const exportSys = resolveCustomsSystemForRoute(gameState.currentCity, shipmentForm.destId, 'export');
@@ -269,15 +352,23 @@ function renderShipmentModal() {
   document.getElementById('shipment-naccs-info').innerHTML = `
     <div class="naccs-info">
       <p><strong>輸出:</strong> ${exportSys.name} — ${exportSys.desc}</p>
+      <p class="option-meta"><span class="option-meta__cost">手数料 $${exportSys.fee}</span><span class="option-meta__sep">·</span><span class="option-meta__days">+${Math.max(1, Math.ceil(1 * exportSys.speedMult))}日</span></p>
       <p><strong>輸入:</strong> ${importSys.name} — ${importSys.desc}</p>
-      ${exportSys.id === 'naccs' ? '<p class="cost-fta">🇯🇵 NACCS（税関・港湾・通関業者・銀行間EDI）を使用</p>' : ''}
+      <p class="option-meta"><span class="option-meta__cost">手数料 $${importSys.fee}</span><span class="option-meta__sep">·</span><span class="option-meta__days">通関×${importSys.speedMult}</span></p>
+      ${exportSys.id === 'naccs' ? '<p class="cost-fta">🇯🇵 NACCS（税関・港湾・通関業者・銀行間EDI）</p>' : ''}
     </div>`;
 
+  const coCostsOff = estimateShipmentCosts({ includeCO: false });
+  const coCostsOn = estimateShipmentCosts({ includeCO: true });
   document.getElementById('shipment-co-option').innerHTML = `
     <label class="checkbox-label">
       <input type="checkbox" id="include-co" ${shipmentForm.includeCO ? 'checked' : ''}>
-      原産地証明書（C/O）を添付 — FTA追加減税 (+$${TRADE_DOCUMENTS.certificate_of_origin.cost})
-    </label>`;
+      原産地証明書（C/O）を添付 — FTA追加減税
+    </label>
+    <div class="option-meta co-compare">
+      <span>C/Oなし: <strong>$${coCostsOff.playerTotal.toLocaleString()}</strong> / ${coCostsOff.totalDays}日</span>
+      <span>C/Oあり: <strong>$${coCostsOn.playerTotal.toLocaleString()}</strong> / ${coCostsOn.totalDays}日</span>
+    </div>`;
 
   bindShipmentModalEvents();
   const costs = calculateTradeCosts(gameState, getShipmentOpts());
@@ -502,13 +593,20 @@ function renderBankPanel() {
   const el = document.getElementById('bank-panel');
   if (!el) return;
   const bank = BANKS[gameState.selectedBank] || getDefaultBank(gameState.currentCity);
-  el.innerHTML = Object.values(BANKS).map((b) => `
+  el.innerHTML = Object.values(BANKS).map((b) => {
+    let shipmentNote = '';
+    if (pendingShipment && shipmentForm.destId) {
+      shipmentNote = fmtOptionMeta(estimateShipmentCosts({ bankId: b.id }), { compact: true });
+    }
+    return `
     <button class="incoterm-btn ${gameState.selectedBank === b.id ? 'incoterm-btn--active' : ''}" data-bank="${b.id}" ${gameOver ? 'disabled' : ''}>
-      <strong>${b.name}</strong><span>${b.naccsLinked ? 'NACCS連携' : '国際取引'} / T/T $${b.ttFee}</span>
-    </button>`).join('')
-    + `<p class="hint incoterm-hint">${bank.desc} L/C手数料×${bank.lcFeeMult} / 為替スプレッド${(bank.fxSpread * 100).toFixed(1)}%</p>`;
+      <div class="incoterm-btn__row"><strong>${b.name}</strong><span class="option-meta option-meta--small"><span class="option-meta__cost">T/T $${b.ttFee}</span></span>${shipmentNote}</div>
+      <span>${b.naccsLinked ? 'NACCS連携' : '国際取引'}</span>
+    </button>`;
+  }).join('')
+    + `<p class="hint incoterm-hint">${bank.desc} L/C手数料×${bank.lcFeeMult} / 為替${(bank.fxSpread * 100).toFixed(1)}%</p>`;
   el.querySelectorAll('[data-bank]').forEach((b) => {
-    b.onclick = () => { gameState.selectedBank = b.dataset.bank; shipmentForm.bankId = b.dataset.bank; renderBankPanel(); };
+    b.onclick = () => { gameState.selectedBank = b.dataset.bank; shipmentForm.bankId = b.dataset.bank; renderBankPanel(); if (pendingShipment) renderShipmentModal(); };
   });
 }
 
@@ -568,10 +666,20 @@ function renderShipments() {
 function renderIncotermPanel() {
   const el = document.getElementById('incoterm-panel');
   const cur = INCOTERMS[gameState.selectedIncoterm];
-  el.innerHTML = Object.values(INCOTERMS).map((t) =>
-    `<button class="incoterm-btn ${gameState.selectedIncoterm === t.id ? 'incoterm-btn--active' : ''}" data-incoterm="${t.id}" ${gameOver ? 'disabled' : ''}><strong>${t.name}</strong><span>${t.fullName}</span></button>`
-  ).join('') + `<p class="hint incoterm-hint">${cur.desc}</p>`;
-  el.querySelectorAll('.incoterm-btn').forEach((b) => { b.onclick = () => { gameState.selectedIncoterm = b.dataset.incoterm; renderIncotermPanel(); renderMarket(); }; });
+  el.innerHTML = Object.values(INCOTERMS).map((t) => {
+    const purchaseNote = fmtPurchaseMeta(t.id);
+    let shipmentNote = '';
+    if (pendingShipment && shipmentForm.destId) {
+      const costs = estimateShipmentCosts({ incotermId: t.id });
+      shipmentNote = fmtOptionMeta(costs, { compact: true });
+    }
+    return `
+    <button class="incoterm-btn ${gameState.selectedIncoterm === t.id ? 'incoterm-btn--active' : ''}" data-incoterm="${t.id}" ${gameOver ? 'disabled' : ''}>
+      <div class="incoterm-btn__row"><strong>${t.name}</strong>${purchaseNote}${shipmentNote}</div>
+      <span>${t.fullName}</span>
+    </button>`;
+  }).join('') + `<p class="hint incoterm-hint">${cur.desc}</p>`;
+  el.querySelectorAll('.incoterm-btn').forEach((b) => { b.onclick = () => { gameState.selectedIncoterm = b.dataset.incoterm; shipmentForm.incoterm = b.dataset.incoterm; renderIncotermPanel(); renderMarket(); if (pendingShipment) renderShipmentModal(); }; });
 }
 
 function renderTravelAndShip() {
