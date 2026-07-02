@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useTranslations, useLocale } from "next-intl";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useEffect, useState } from "react";
 import type { BorrowRecord } from "@/lib/types";
 
 export default function MyBooksPage() {
+  const t = useTranslations("myBooks");
+  const locale = useLocale();
   const [records, setRecords] = useState<BorrowRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -39,7 +41,10 @@ export default function MyBooksPage() {
 
     const res = await fetch("/api/borrow", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-locale": locale,
+      },
       body: JSON.stringify({ bookId, action: "return" }),
     });
 
@@ -53,6 +58,9 @@ export default function MyBooksPage() {
 
   const isOverdue = (dueDate: string) => new Date(dueDate) < new Date();
 
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString(locale);
+
   if (loading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-10">
@@ -63,8 +71,8 @@ export default function MyBooksPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="text-2xl font-bold text-stone-900">借りている本</h1>
-      <p className="mt-2 text-sm text-stone-500">現在借りている書籍の一覧です</p>
+      <h1 className="text-2xl font-bold text-stone-900">{t("title")}</h1>
+      <p className="mt-2 text-sm text-stone-500">{t("subtitle")}</p>
 
       {message && (
         <div className="mt-6 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -75,12 +83,12 @@ export default function MyBooksPage() {
       {records.length === 0 ? (
         <div className="mt-10 rounded-2xl border border-dashed border-stone-300 bg-stone-50 py-16 text-center">
           <p className="text-4xl">📭</p>
-          <p className="mt-3 text-lg font-medium text-stone-700">借りている本はありません</p>
+          <p className="mt-3 text-lg font-medium text-stone-700">{t("empty")}</p>
           <Link
             href="/"
             className="mt-4 inline-block rounded-xl bg-amber-700 px-6 py-2.5 text-sm font-medium text-white hover:bg-amber-800"
           >
-            蔵書を探す
+            {t("browseCatalog")}
           </Link>
         </div>
       ) : (
@@ -105,8 +113,8 @@ export default function MyBooksPage() {
                 </Link>
                 <p className="text-sm text-stone-500">{record.book_author}</p>
                 <p className={`mt-1 text-xs ${isOverdue(record.due_date) ? "font-medium text-red-600" : "text-stone-400"}`}>
-                  返却期限: {new Date(record.due_date).toLocaleDateString("ja-JP")}
-                  {isOverdue(record.due_date) && " （期限超過）"}
+                  {t("dueDate")}: {formatDate(record.due_date)}
+                  {isOverdue(record.due_date) && ` ${t("overdue")}`}
                 </p>
               </div>
               <button
@@ -114,7 +122,7 @@ export default function MyBooksPage() {
                 disabled={actionLoading === record.book_id}
                 className="shrink-0 rounded-xl border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
               >
-                {actionLoading === record.book_id ? "返却中..." : "返却する"}
+                {actionLoading === record.book_id ? t("returning") : t("return")}
               </button>
             </div>
           ))}

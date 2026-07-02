@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSessionUser, requireAuth } from "@/lib/auth";
+import { getLocaleFromRequest, tError, getMessages } from "@/lib/locale";
+import type { Locale } from "@/i18n/routing";
+
+function formatDueDate(date: Date, locale: Locale): string {
+  return date.toLocaleDateString(locale === "zh-CN" ? "zh-CN" : locale === "zh-TW" ? "zh-TW" : locale);
+}
 
 export async function POST(request: NextRequest) {
+  const locale = getLocaleFromRequest(request);
   let user;
   try {
     user = requireAuth(await getSessionUser());
   } catch {
-    return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+    return NextResponse.json({ error: await tError(locale, "LOGIN_REQUIRED") }, { status: 401 });
   }
 
   const { bookId, action } = await request.json();
   if (!bookId || !action) {
-    return NextResponse.json({ error: "パラメータが不足しています" }, { status: 400 });
+    return NextResponse.json({ error: await tError(locale, "MISSING_PARAMS") }, { status: 400 });
   }
 
   const db = getDb();
+  const messages = await getMessages(locale);
 
   if (action === "borrow") {
     const book = db.prepare("SELECT * FROM books WHERE id = ?").get(bookId) as
@@ -23,11 +31,11 @@ export async function POST(request: NextRequest) {
       | undefined;
 
     if (!book) {
-      return NextResponse.json({ error: "書籍が見つかりません" }, { status: 404 });
+      return NextResponse.json({ error: await tError(locale, "BOOK_NOT_FOUND") }, { status: 404 });
     }
 
     if (book.available_copies <= 0) {
-      return NextResponse.json({ error: "現在貸出可能な在庫がありません" }, { status: 400 });
+      return NextResponse.json({ error: await tError(locale, "NO_STOCK") }, { status: 400 });
     }
 
     const existing = db.prepare(
@@ -35,7 +43,7 @@ export async function POST(request: NextRequest) {
     ).get(user.id, bookId);
 
     if (existing) {
-      return NextResponse.json({ error: "この書籍は既に借りています" }, { status: 400 });
+      return NextResponse.json({ error: await tError(locale, "ALREADY_BORROWED") }, { status: 400 });
     }
 
     const dueDate = new Date();
@@ -49,11 +57,15 @@ export async function POST(request: NextRequest) {
       return result.lastInsertRowid;
     })();
 
+    const message = messages.book.borrowSuccess
+      .replace("{title}", book.title)
+      .replace("{dueDate}", formatDueDate(dueDate, locale));
+
     return NextResponse.json({
       success: true,
       borrowId: borrow,
       dueDate: dueDate.toISOString(),
-      message: `「${book.title}」を借りました。返却期限: ${dueDate.toLocaleDateString("ja-JP")}`,
+      message,
     });
   }
 
@@ -63,7 +75,7 @@ export async function POST(request: NextRequest) {
     ).get(user.id, bookId) as { id: number; book_id: number } | undefined;
 
     if (!record) {
-      return NextResponse.json({ error: "この書籍の貸出記録が見つかりません" }, { status: 404 });
+      return NextResponse.json({ error: await tError(locale, "BORROW_NOT_FOUND") }, { status: 404 });
     }
 
     db.transaction(() => {
@@ -71,10 +83,13 @@ export async function POST(request: NextRequest) {
       db.prepare("UPDATE books SET available_copies = available_copies + 1 WHERE id = ?").run(bookId);
     })();
 
-    return NextResponse.json({ success: true, message: "返却が完了しました" });
+    return NextResponse.json({
+      success: true,
+      message: messages.myBooks.returnSuccess,
+    });
   }
 
-  return NextResponse.json({ error: "無効な操作です" }, { status: 400 });
+  return NextResponse.json({ error: await tError(locale, "INVALID_ACTION") }, { status: 400 });
 }
 
 export async function GET() {
@@ -82,7 +97,7 @@ export async function GET() {
   try {
     user = requireAuth(await getSessionUser());
   } catch {
-    return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+    return NextResponse.json({ error: "Login required" }, { status: 401 });
   }
 
   const db = getDb();

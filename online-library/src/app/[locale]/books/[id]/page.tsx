@@ -1,12 +1,18 @@
 "use client";
 
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useTranslations, useLocale } from "next-intl";
+import { Link, useRouter } from "@/i18n/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { translateCategory } from "@/lib/categories";
 import type { Book, SessionUser } from "@/lib/types";
 
 export default function BookDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const t = useTranslations("book");
+  const tCat = useTranslations("categories");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [book, setBook] = useState<Book | null>(null);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +44,10 @@ export default function BookDetailPage() {
 
     const res = await fetch("/api/borrow", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-locale": locale,
+      },
       body: JSON.stringify({ bookId: parseInt(id, 10), action: "borrow" }),
     });
 
@@ -65,20 +74,21 @@ export default function BookDetailPage() {
   if (!book) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 text-center">
-        <p className="text-lg text-stone-600">書籍が見つかりません</p>
+        <p className="text-lg text-stone-600">{t("notFound")}</p>
         <Link href="/" className="mt-4 inline-block text-amber-700 hover:underline">
-          蔵書一覧に戻る
+          {t("backToCatalog")}
         </Link>
       </div>
     );
   }
 
   const available = book.available_copies > 0;
+  const categoryLabel = translateCategory(tCat, book.category);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
       <Link href="/" className="mb-6 inline-flex items-center gap-1 text-sm text-stone-500 hover:text-amber-700">
-        ← 蔵書一覧に戻る
+        ← {t("backToCatalog")}
       </Link>
 
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
@@ -90,7 +100,7 @@ export default function BookDetailPage() {
             <div className="text-center text-white">
               <p className="text-6xl">📖</p>
               <p className="mt-4 text-sm font-medium uppercase tracking-widest opacity-80">
-                {book.category}
+                {categoryLabel}
               </p>
             </div>
           </div>
@@ -101,29 +111,29 @@ export default function BookDetailPage() {
 
             <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
               <div>
-                <dt className="text-stone-400">ISBN</dt>
+                <dt className="text-stone-400">{t("isbn")}</dt>
                 <dd className="font-medium text-stone-800">{book.isbn}</dd>
               </div>
               <div>
-                <dt className="text-stone-400">出版年</dt>
-                <dd className="font-medium text-stone-800">{book.published_year}年</dd>
+                <dt className="text-stone-400">{t("publishedYear")}</dt>
+                <dd className="font-medium text-stone-800">{book.published_year}{tCommon("year")}</dd>
               </div>
               <div>
-                <dt className="text-stone-400">カテゴリ</dt>
-                <dd className="font-medium text-stone-800">{book.category}</dd>
+                <dt className="text-stone-400">{t("category")}</dt>
+                <dd className="font-medium text-stone-800">{categoryLabel}</dd>
               </div>
               <div>
-                <dt className="text-stone-400">在庫状況</dt>
+                <dt className="text-stone-400">{t("availability")}</dt>
                 <dd className={`font-medium ${available ? "text-emerald-700" : "text-stone-500"}`}>
                   {available
-                    ? `${book.available_copies} / ${book.total_copies} 冊 貸出可能`
-                    : "現在貸出中"}
+                    ? t("available", { available: book.available_copies, total: book.total_copies })
+                    : t("currentlyBorrowed")}
                 </dd>
               </div>
             </dl>
 
             <div className="mt-6">
-              <h2 className="text-sm font-semibold text-stone-700">あらすじ</h2>
+              <h2 className="text-sm font-semibold text-stone-700">{t("synopsis")}</h2>
               <p className="mt-2 leading-relaxed text-stone-600">{book.description}</p>
             </div>
 
@@ -145,17 +155,17 @@ export default function BookDetailPage() {
                   disabled={actionLoading}
                   className="w-full rounded-xl bg-amber-700 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-50 sm:w-auto"
                 >
-                  {actionLoading ? "処理中..." : user ? "この本を借りる" : "ログインして借りる"}
+                  {actionLoading ? tCommon("processing") : user ? t("borrow") : t("loginToBorrow")}
                 </button>
               ) : (
                 <button
                   disabled
                   className="w-full rounded-xl bg-stone-200 px-6 py-3.5 text-sm font-semibold text-stone-500 sm:w-auto"
                 >
-                  現在貸出中
+                  {t("currentlyBorrowed")}
                 </button>
               )}
-              <p className="mt-2 text-xs text-stone-400">※ 返却期限は借りてから14日間です</p>
+              <p className="mt-2 text-xs text-stone-400">{t("dueDateNote")}</p>
             </div>
           </div>
         </div>

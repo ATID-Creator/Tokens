@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     params.push(like, like, like, like);
   }
 
-  if (category && category !== "すべて") {
+  if (category) {
     query += " AND category = ?";
     params.push(category);
   }
@@ -34,19 +34,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const { getLocaleFromRequest, tError } = await import("@/lib/locale");
+  const locale = getLocaleFromRequest(request);
+
   try {
     const { requireAdmin, getSessionUser } = await import("@/lib/auth");
     requireAdmin(await getSessionUser());
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
-    return NextResponse.json({ error: msg === "FORBIDDEN" ? "管理者権限が必要です" : "ログインが必要です" }, { status: msg === "FORBIDDEN" ? 403 : 401 });
+    const key = msg === "FORBIDDEN" ? "ADMIN_REQUIRED" as const : "LOGIN_REQUIRED" as const;
+    return NextResponse.json({ error: await tError(locale, key) }, { status: msg === "FORBIDDEN" ? 403 : 401 });
   }
 
   const body = await request.json();
   const { title, author, isbn, description, category, cover_color, total_copies, published_year } = body;
 
   if (!title || !author || !isbn) {
-    return NextResponse.json({ error: "タイトル、著者、ISBNは必須です" }, { status: 400 });
+    return NextResponse.json({ error: await tError(locale, "TITLE_AUTHOR_ISBN_REQUIRED") }, { status: 400 });
   }
 
   const db = getDb();
@@ -71,6 +75,6 @@ export async function POST(request: NextRequest) {
     const book = db.prepare("SELECT * FROM books WHERE id = ?").get(result.lastInsertRowid);
     return NextResponse.json({ book }, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "ISBNが重複しています" }, { status: 409 });
+    return NextResponse.json({ error: await tError(locale, "ISBN_DUPLICATE") }, { status: 409 });
   }
 }

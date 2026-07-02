@@ -10,10 +10,29 @@
 - **貸出・返却** — 書籍の借り出し（14日間）と返却
 - **マイページ** — 借りている本の一覧と返却
 - **管理画面** — 書籍の追加・編集・削除（管理者のみ）
+- **多言語対応** — アジア圏10言語 + 英語（ヘッダーの言語切替）
+
+## 対応言語
+
+| コード | 言語 |
+|--------|------|
+| `ja` | 日本語（デフォルト） |
+| `en` | English |
+| `zh-CN` | 简体中文 |
+| `zh-TW` | 繁體中文 |
+| `ko` | 한국어 |
+| `th` | ไทย |
+| `vi` | Tiếng Việt |
+| `id` | Bahasa Indonesia |
+| `hi` | हिन्दी |
+| `ms` | Bahasa Melayu |
+
+URL形式: `http://localhost:3000/{locale}/` （例: `/ko/`, `/zh-CN/`）
 
 ## 技術スタック
 
 - **フロントエンド**: Next.js 14 (App Router), React, TypeScript, Tailwind CSS
+- **国際化**: next-intl（10言語対応）
 - **バックエンド**: Next.js API Routes
 - **データベース**: SQLite (better-sqlite3)
 

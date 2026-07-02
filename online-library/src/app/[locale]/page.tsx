@@ -1,19 +1,19 @@
 import { Suspense } from "react";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import BookCatalog from "@/components/BookCatalog";
+import type { Locale } from "@/i18n/routing";
 
-export default function HomePage() {
+export default async function HomePage({ params: { locale } }: { params: { locale: Locale } }) {
+  setRequestLocale(locale);
+  const t = await getTranslations({ locale, namespace: "home" });
+
   return (
     <div>
       <section className="bg-gradient-to-br from-amber-800 via-amber-700 to-stone-800 px-4 py-16 text-white">
         <div className="mx-auto max-w-6xl">
-          <p className="text-sm font-medium uppercase tracking-widest text-amber-200">Welcome</p>
-          <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-            オンライン図書館
-          </h1>
-          <p className="mt-4 max-w-xl text-lg text-amber-100">
-            数千冊の蔵書から、お好みの本を見つけて借りることができます。
-            登録は無料、返却期限は借りてから14日間です。
-          </p>
+          <p className="text-sm font-medium uppercase tracking-widest text-amber-200">{t("welcome")}</p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{t("title")}</h1>
+          <p className="mt-4 max-w-xl text-lg text-amber-100">{t("description")}</p>
         </div>
       </section>
 

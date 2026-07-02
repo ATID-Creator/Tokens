@@ -2,22 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
+import { getLocaleFromRequest, tError } from "@/lib/locale";
 
 export async function POST(request: NextRequest) {
+  const locale = getLocaleFromRequest(request);
   const { email, password, name } = await request.json();
 
   if (!email || !password || !name) {
-    return NextResponse.json({ error: "すべての項目を入力してください" }, { status: 400 });
+    return NextResponse.json({ error: await tError(locale, "ALL_FIELDS_REQUIRED") }, { status: 400 });
   }
 
   if (password.length < 6) {
-    return NextResponse.json({ error: "パスワードは6文字以上で入力してください" }, { status: 400 });
+    return NextResponse.json({ error: await tError(locale, "PASSWORD_TOO_SHORT") }, { status: 400 });
   }
 
   const db = getDb();
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
   if (existing) {
-    return NextResponse.json({ error: "このメールアドレスは既に登録されています" }, { status: 409 });
+    return NextResponse.json({ error: await tError(locale, "EMAIL_EXISTS") }, { status: 409 });
   }
 
   const hash = bcrypt.hashSync(password, 10);

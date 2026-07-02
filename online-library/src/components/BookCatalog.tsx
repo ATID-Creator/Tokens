@@ -1,46 +1,56 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "@/i18n/navigation";
 import BookCard from "./BookCard";
+import { translateCategory } from "@/lib/categories";
 import type { Book } from "@/lib/types";
 
 export default function BookCatalog() {
+  const t = useTranslations("catalog");
+  const tCommon = useTranslations("common");
+  const tCat = useTranslations("categories");
   const [books, setBooks] = useState<Book[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("すべて");
+  const [category, setCategory] = useState("");
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const allValue = t("allCategoriesValue");
 
   const fetchBooks = useCallback(async (q: string, cat: string) => {
     setLoading(true);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (cat && cat !== "すべて") params.set("category", cat);
+    if (cat && cat !== allValue) params.set("category", cat);
 
     const res = await fetch(`/api/books?${params}`);
     const data = await res.json();
     setBooks(data.books);
     setCategories(data.categories);
     setLoading(false);
-  }, []);
+  }, [allValue]);
 
   useEffect(() => {
     const q = searchParams.get("q") || "";
-    const cat = searchParams.get("category") || "すべて";
+    const cat = searchParams.get("category") || allValue;
     setQuery(q);
     setCategory(cat);
     fetchBooks(q, cat);
-  }, [searchParams, fetchBooks]);
+  }, [searchParams, fetchBooks, allValue]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams();
     if (query) params.set("q", query);
-    if (category !== "すべて") params.set("category", category);
-    router.push(`/?${params.toString()}`);
+    if (category !== allValue) params.set("category", category);
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   };
 
   return (
@@ -59,25 +69,27 @@ export default function BookCatalog() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="タイトル、著者、ISBNで検索..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-xl border border-stone-300 bg-white py-3 pl-10 pr-4 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/20"
           />
         </div>
         <select
-          value={category}
+          value={category || allValue}
           onChange={(e) => setCategory(e.target.value)}
           className="rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/20"
         >
-          <option value="すべて">すべてのカテゴリ</option>
+          <option value={allValue}>{t("allCategories")}</option>
           {categories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option key={cat} value={cat}>
+              {translateCategory(tCat, cat)}
+            </option>
           ))}
         </select>
         <button
           type="submit"
           className="rounded-xl bg-amber-700 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-amber-800"
         >
-          検索
+          {tCommon("search")}
         </button>
       </form>
 
@@ -90,12 +102,12 @@ export default function BookCatalog() {
       ) : books.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 py-16 text-center">
           <p className="text-4xl">🔍</p>
-          <p className="mt-3 text-lg font-medium text-stone-700">該当する書籍が見つかりません</p>
-          <p className="mt-1 text-sm text-stone-500">検索条件を変更してお試しください</p>
+          <p className="mt-3 text-lg font-medium text-stone-700">{t("noResults")}</p>
+          <p className="mt-1 text-sm text-stone-500">{t("noResultsHint")}</p>
         </div>
       ) : (
         <>
-          <p className="mb-4 text-sm text-stone-500">{books.length} 件の書籍</p>
+          <p className="mb-4 text-sm text-stone-500">{t("bookCount", { count: books.length })}</p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {books.map((book) => (
               <BookCard key={book.id} book={book} />

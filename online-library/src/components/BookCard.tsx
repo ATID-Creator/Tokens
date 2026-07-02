@@ -1,4 +1,8 @@
-import Link from "next/link";
+"use client";
+
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
+import { translateCategory } from "@/lib/categories";
 import type { Book } from "@/lib/types";
 
 interface BookCardProps {
@@ -6,7 +10,12 @@ interface BookCardProps {
 }
 
 export default function BookCard({ book }: BookCardProps) {
+  const t = useTranslations("catalog");
+  const tCat = useTranslations("categories");
+  const tCommon = useTranslations("common");
   const available = book.available_copies > 0;
+
+  const categoryLabel = translateCategory(tCat, book.category);
 
   return (
     <Link
@@ -19,7 +28,7 @@ export default function BookCard({ book }: BookCardProps) {
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
         <span className="relative rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
-          {book.category}
+          {categoryLabel}
         </span>
       </div>
 
@@ -33,7 +42,9 @@ export default function BookCard({ book }: BookCardProps) {
         </p>
 
         <div className="mt-4 flex items-center justify-between">
-          <span className="text-xs text-stone-400">{book.published_year}年</span>
+          <span className="text-xs text-stone-400">
+            {book.published_year}{tCommon("year")}
+          </span>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
               available
@@ -41,7 +52,7 @@ export default function BookCard({ book }: BookCardProps) {
                 : "bg-stone-100 text-stone-500"
             }`}
           >
-            {available ? `在庫 ${book.available_copies}冊` : "貸出中"}
+            {available ? t("inStock", { count: book.available_copies }) : t("borrowedOut")}
           </span>
         </div>
       </div>

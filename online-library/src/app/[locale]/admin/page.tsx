@@ -1,7 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTranslations, useLocale } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { useEffect, useState } from "react";
+import { translateCategory } from "@/lib/categories";
 import type { Book } from "@/lib/types";
 
 const COVER_COLORS = ["#6366f1", "#8b5cf6", "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#ec4899", "#06b6d4"];
@@ -18,6 +20,10 @@ const emptyForm = {
 };
 
 export default function AdminPage() {
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
+  const tCat = useTranslations("categories");
+  const locale = useLocale();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
@@ -56,6 +62,11 @@ export default function AdminPage() {
       });
   }, [router]);
 
+  const apiHeaders = {
+    "Content-Type": "application/json",
+    "x-locale": locale,
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -67,13 +78,13 @@ export default function AdminPage() {
 
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders,
       body: JSON.stringify(form),
     });
 
     const data = await res.json();
     if (res.ok) {
-      setMessage(editingId ? "書籍を更新しました" : "書籍を追加しました");
+      setMessage(editingId ? t("updateSuccess") : t("addSuccess"));
       setForm(emptyForm);
       setEditingId(null);
       fetchBooks();
@@ -99,12 +110,15 @@ export default function AdminPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("この書籍を削除しますか？")) return;
+    if (!confirm(t("deleteConfirm"))) return;
 
-    const res = await fetch(`/api/books/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/books/${id}`, {
+      method: "DELETE",
+      headers: { "x-locale": locale },
+    });
     const data = await res.json();
     if (res.ok) {
-      setMessage("書籍を削除しました");
+      setMessage(t("deleteSuccess"));
       fetchBooks();
     } else {
       setError(data.error);
@@ -124,10 +138,12 @@ export default function AdminPage() {
     );
   }
 
+  const req = t("required");
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-bold text-stone-900">管理画面</h1>
-      <p className="mt-2 text-sm text-stone-500">書籍の追加・編集・削除ができます</p>
+      <h1 className="text-2xl font-bold text-stone-900">{t("title")}</h1>
+      <p className="mt-2 text-sm text-stone-500">{t("subtitle")}</p>
 
       {message && (
         <div className="mt-6 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>
@@ -138,20 +154,20 @@ export default function AdminPage() {
 
       <form onSubmit={handleSubmit} className="mt-8 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-800">
-          {editingId ? "書籍を編集" : "新しい書籍を追加"}
+          {editingId ? t("editBook") : t("addBook")}
         </h2>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <Field label="タイトル *" value={form.title} onChange={(v) => setForm({ ...form, title: v })} required />
-          <Field label="著者 *" value={form.author} onChange={(v) => setForm({ ...form, author: v })} required />
-          <Field label="ISBN *" value={form.isbn} onChange={(v) => setForm({ ...form, isbn: v })} required />
-          <Field label="カテゴリ" value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
-          <Field label="在庫数" value={String(form.total_copies)} onChange={(v) => setForm({ ...form, total_copies: parseInt(v, 10) || 1 })} type="number" />
-          <Field label="出版年" value={String(form.published_year)} onChange={(v) => setForm({ ...form, published_year: parseInt(v, 10) || 2020 })} type="number" />
+          <Field label={`${t("titleLabel")} ${req}`} value={form.title} onChange={(v) => setForm({ ...form, title: v })} required />
+          <Field label={`${t("authorLabel")} ${req}`} value={form.author} onChange={(v) => setForm({ ...form, author: v })} required />
+          <Field label={`${t("isbnLabel")} ${req}`} value={form.isbn} onChange={(v) => setForm({ ...form, isbn: v })} required />
+          <Field label={t("categoryLabel")} value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
+          <Field label={t("stockLabel")} value={String(form.total_copies)} onChange={(v) => setForm({ ...form, total_copies: parseInt(v, 10) || 1 })} type="number" />
+          <Field label={t("yearLabel")} value={String(form.published_year)} onChange={(v) => setForm({ ...form, published_year: parseInt(v, 10) || 2020 })} type="number" />
         </div>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-stone-700">表紙カラー</label>
+          <label className="block text-sm font-medium text-stone-700">{t("coverColor")}</label>
           <div className="mt-2 flex gap-2">
             {COVER_COLORS.map((color) => (
               <button
@@ -168,7 +184,7 @@ export default function AdminPage() {
         </div>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-stone-700">あらすじ</label>
+          <label className="block text-sm font-medium text-stone-700">{t("synopsisLabel")}</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -183,7 +199,7 @@ export default function AdminPage() {
             disabled={submitting}
             className="rounded-xl bg-amber-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
           >
-            {submitting ? "保存中..." : editingId ? "更新する" : "追加する"}
+            {submitting ? t("saving") : editingId ? t("update") : t("add")}
           </button>
           {editingId && (
             <button
@@ -191,23 +207,23 @@ export default function AdminPage() {
               onClick={handleCancel}
               className="rounded-xl border border-stone-300 px-6 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50"
             >
-              キャンセル
+              {tCommon("cancel")}
             </button>
           )}
         </div>
       </form>
 
       <div className="mt-10">
-        <h2 className="text-lg font-semibold text-stone-800">蔵書一覧（{books.length}冊）</h2>
+        <h2 className="text-lg font-semibold text-stone-800">{t("bookList", { count: books.length })}</h2>
         <div className="mt-4 overflow-x-auto rounded-2xl border border-stone-200 bg-white shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-stone-200 bg-stone-50">
               <tr>
-                <th className="px-4 py-3 font-medium text-stone-600">タイトル</th>
-                <th className="px-4 py-3 font-medium text-stone-600">著者</th>
-                <th className="px-4 py-3 font-medium text-stone-600">カテゴリ</th>
-                <th className="px-4 py-3 font-medium text-stone-600">在庫</th>
-                <th className="px-4 py-3 font-medium text-stone-600">操作</th>
+                <th className="px-4 py-3 font-medium text-stone-600">{t("tableTitle")}</th>
+                <th className="px-4 py-3 font-medium text-stone-600">{t("tableAuthor")}</th>
+                <th className="px-4 py-3 font-medium text-stone-600">{t("tableCategory")}</th>
+                <th className="px-4 py-3 font-medium text-stone-600">{t("tableStock")}</th>
+                <th className="px-4 py-3 font-medium text-stone-600">{t("tableActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -215,7 +231,7 @@ export default function AdminPage() {
                 <tr key={book.id} className="border-b border-stone-100 last:border-0">
                   <td className="px-4 py-3 font-medium text-stone-900">{book.title}</td>
                   <td className="px-4 py-3 text-stone-600">{book.author}</td>
-                  <td className="px-4 py-3 text-stone-600">{book.category}</td>
+                  <td className="px-4 py-3 text-stone-600">{translateCategory(tCat, book.category)}</td>
                   <td className="px-4 py-3 text-stone-600">
                     {book.available_copies}/{book.total_copies}
                   </td>
@@ -225,13 +241,13 @@ export default function AdminPage() {
                         onClick={() => handleEdit(book)}
                         className="rounded-lg px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
                       >
-                        編集
+                        {t("edit")}
                       </button>
                       <button
                         onClick={() => handleDelete(book.id)}
                         className="rounded-lg px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
                       >
-                        削除
+                        {t("delete")}
                       </button>
                     </div>
                   </td>
